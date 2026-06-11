@@ -71,6 +71,7 @@ class TokenSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"  # Always "bearer"
     refresh_token: Optional[str] = None
+    user_name: str 
 
 
 class TokenDataSchema(BaseModel):
