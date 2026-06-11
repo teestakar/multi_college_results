@@ -132,7 +132,7 @@ async def refresh(request: RefreshRequest, db: AsyncSession = Depends(get_db)):
     
     # Step 3: Create new access_token
     new_payload = {
-        "user_id": str(student.id),
+        "user_id": str(student.roll_no),
         "college_id": str(student.college_id),
         "roll_no": student.roll_no
     }
