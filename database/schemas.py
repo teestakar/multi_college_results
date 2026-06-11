@@ -1,0 +1,97 @@
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from enum import Enum
+
+# ==================== ENUMS ====================
+class UserRole(str, Enum):
+    STUDENT = "student"
+    TEACHER = "teacher"
+    SUPERADMIN = "superadmin"
+
+
+# ==================== STUDENT SCHEMAS ====================
+class StudentRegisterSchema(BaseModel):
+    """Schema for student registration"""
+    college_id: str = Field(..., min_length=1, description="Which college")  # ← ADD THIS
+    roll_no: str = Field(..., min_length=1, description="Student roll number")
+    email: EmailStr  # Validates email format automatically
+    password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
+    name: str = Field(..., min_length=1)
+    degree: str  # B.Tech, M.Tech, etc
+    branch: str  # CSE, ECE, etc
+    year: int = Field(..., ge=1, le=4)  # 1, 2, 3, or 4
+
+class StudentLoginSchema(BaseModel):
+    """Schema for student login"""
+    college_code: str = Field(..., min_length=1)  # ← ADD THIS
+    roll_no: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+class StudentResponseSchema(BaseModel):
+    """Schema for returning student data (no password!)"""
+    roll_no: str
+    email: str
+    name: str
+    degree: str
+    branch: str
+    year: int
+    
+    class Config:
+        from_attributes = True  # Convert ORM object to schema
+
+
+# ==================== TEACHER SCHEMAS ====================
+class TeacherRegisterSchema(BaseModel):
+    """Schema for teacher registration (admin only)"""
+    teacher_id: str = Field(..., min_length=1)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    name: str = Field(..., min_length=1)
+
+
+class TeacherLoginSchema(BaseModel):
+    """Schema for teacher login"""
+    teacher_id: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+
+class TeacherResponseSchema(BaseModel):
+    """Schema for returning teacher data (no password!)"""
+    teacher_id: str
+    email: str
+    name: str
+    
+    class Config:
+        from_attributes = True
+
+
+# ==================== TOKEN SCHEMAS ====================
+class TokenSchema(BaseModel):
+    """Schema for JWT token response"""
+    access_token: str
+    token_type: str = "bearer"  # Always "bearer"
+    refresh_token: Optional[str] = None
+
+
+class TokenDataSchema(BaseModel):
+    """Schema for data inside JWT token"""
+    user_id: str  # roll_no for students, teacher_id for teachers
+    user_type: str  # "student" or "teacher"
+    college_id: str
+
+class RefreshRequest(BaseModel):
+    """Schema for refresh token request"""
+    refresh_token: str = Field(..., min_length=1)
+
+
+# ==================== GENERIC SCHEMAS ====================
+class MessageSchema(BaseModel):
+    """Generic message response"""
+    message: str
+    status: str  # "success", "error"
+
+
+class ErrorSchema(BaseModel):
+    """Generic error response"""
+    detail: str
+    status_code: int
