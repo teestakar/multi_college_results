@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, ForeignKey, Enum, Text
+from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, ForeignKey, Enum, Text, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -79,6 +79,12 @@ class Mark(Base):
     student = relationship("Student", back_populates="marks")
     college = relationship("College", back_populates="marks")
     uploaded_by_teacher = relationship("Teacher", back_populates="marks")
+
+    __table_args__ = (
+        Index('idx_mark_student_college', 'roll_no', 'college_id'),
+        Index('idx_mark_college_semester', 'college_id', 'semester'),
+        Index('idx_mark_college', 'college_id'),
+    )
 
 
 # ==================== UPLOAD BATCHES TABLE ====================
