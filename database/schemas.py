@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from enum import Enum
+from datetime import datetime
+from uuid import UUID
 
 # ==================== ENUMS ====================
 class UserRole(str, Enum):
@@ -96,3 +98,39 @@ class ErrorSchema(BaseModel):
     """Generic error response"""
     detail: str
     status_code: int
+
+
+# ==================== MARK/RESULTS SCHEMAS ====================
+class MarkResponseSchema(BaseModel):
+    """Schema for a single mark/result"""
+    id: UUID
+    semester: int
+    subject_code: str
+    subject_name: str
+    grade: str
+    points: float
+    credits: float
+    credit_points: float
+    uploaded_at: datetime  # ISO format datetime
+    
+    class Config:
+        from_attributes = True  # Convert ORM object to schema
+
+
+class ResultsResponseSchema(BaseModel):
+    """Schema for results list response"""
+    results: list[MarkResponseSchema]
+    total_count: int  # Total marks in the filtered query
+    limit: int  # How many per page
+    offset: int  # Starting position
+    semester: Optional[int] = None  # Which semester was filtered (if any)
+    message: str = "Results fetched successfully"
+
+
+class ResultStatisticsSchema(BaseModel):
+    """Schema for result statistics (admin view)"""
+    total_marks: int  # How many marks does student have
+    avg_points: float  # Average grade points
+    pass_count: int  # How many marks >= 5.0 (passing)
+    fail_count: int  # How many marks < 5.0 (failing)
+    by_semester: dict  # {1: avg_points, 2: avg_points, ...}

@@ -5,6 +5,7 @@ from config import settings
 from database.database import init_db, engine
 from routers.health import router as health_router
 from routers.auth import router as auth_router
+from routers.results import router as results_router
 
 # ==================== STARTUP/SHUTDOWN ====================
 async def startup():
@@ -52,6 +53,9 @@ app.add_middleware(
 # ==================== ROUTERS ====================
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(health_router)
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(results_router, prefix="/api/results", tags=["results"])  # ← ADD THIS
 
 # ==================== ROOT ENDPOINT ====================
 @app.get("/")

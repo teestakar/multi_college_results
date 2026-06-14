@@ -81,8 +81,8 @@ async def login(login_data: StudentLoginSchema, db: AsyncSession = Depends(get_d
     # Step 4: Create tokens
     payload = {
         "user_id": str(student.roll_no),
-        "college_id": str(student.college_id),
-        "roll_no": student.roll_no
+        "user_type": "student", 
+        "college_id": str(student.college_id)
     }
     access_token = create_access_token(payload)
     refresh_token = create_refresh_token(payload)
@@ -134,8 +134,8 @@ async def refresh(request: RefreshRequest, db: AsyncSession = Depends(get_db)):
     # Step 3: Create new access_token
     new_payload = {
         "user_id": str(student.roll_no),
-        "college_id": str(student.college_id),
-        "roll_no": student.roll_no
+        "user_type": "student",
+        "college_id": str(student.college_id)
     }
     new_access_token = create_access_token(new_payload)
     
