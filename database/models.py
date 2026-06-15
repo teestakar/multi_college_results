@@ -29,6 +29,7 @@ class Student(Base):
     roll_no = Column(String(50), primary_key=True)  # "2024052002052" - LOGIN ID
     password_hash = Column(String(255), nullable=False)  # bcrypt hashed
     name = Column(String(255), nullable=False)  # "TEESTA KAR"
+    email = Column(String, nullable=True)
     registration_no = Column(String(100))  # "104202405200524 of 2024-25"
     degree = Column(String(50))  # "B.Tech"
     branch = Column(String(50))  # "CSE", "ECE"
@@ -50,6 +51,7 @@ class Teacher(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255))
     college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
+    role = Column(String(50), default="teacher")
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

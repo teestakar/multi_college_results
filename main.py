@@ -53,8 +53,6 @@ app.add_middleware(
 # ==================== ROUTERS ====================
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
-app.include_router(health_router)
-app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(results_router, prefix="/api/results", tags=["results"])  # ← ADD THIS
 
 # ==================== ROOT ENDPOINT ====================

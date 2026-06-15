@@ -14,7 +14,6 @@ class UserRole(str, Enum):
 # ==================== STUDENT SCHEMAS ====================
 class StudentRegisterSchema(BaseModel):
     """Schema for student registration"""
-    college_id: str = Field(..., min_length=1, description="Which college")  # ← ADD THIS
     roll_no: str = Field(..., min_length=1, description="Student roll number")
     email: EmailStr  # Validates email format automatically
     password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
@@ -134,3 +133,20 @@ class ResultStatisticsSchema(BaseModel):
     pass_count: int  # How many marks >= 5.0 (passing)
     fail_count: int  # How many marks < 5.0 (failing)
     by_semester: dict  # {1: avg_points, 2: avg_points, ...}
+
+# ==================== COLLEGE + ADMIN SCHEMAS ====================
+class CollegeAdminRegisterSchema(BaseModel):
+    """Schema for college registration with first admin"""
+    college_code: str = Field(..., min_length=1, max_length=10, description="Unique college code (e.g., IEM, VIT)")
+    college_name: str = Field(..., min_length=1, description="Full college name")
+    admin_name: str = Field(..., min_length=1, description="Admin full name")
+    admin_email: EmailStr
+    admin_password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
+
+
+class CollegeAdminResponseSchema(BaseModel):
+    """Response after college + admin registration"""
+    message: str
+    status: str = "success"
+    college_id: str
+    admin_id: str
