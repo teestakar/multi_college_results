@@ -170,65 +170,42 @@ async def login(login_data: StudentLoginSchema, db: AsyncSession = Depends(get_d
 # ============================================================================
 # 2. REFRESH ENDPOINT
 # ============================================================================
+
 @router.post("/refresh")
 async def refresh(request: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenSchema:
     """
     Refresh endpoint
-
+    
     Input: {refresh_token}
     Output: {access_token, token_type}
     """
-
+    
     # Step 1: Validate refresh_token
     try:
         payload = decode_token(request.refresh_token)
     except Exception:
         raise InvalidTokenException()
-
-    user_type = payload.get("user_type")
-    user_id = payload.get("user_id")
-
-    # Step 2: Find user in DB depending on user_type
-    if user_type == "student":
-        query = select(Student).where(Student.roll_no == user_id)
-        result = await db.execute(query)
-        user = result.scalars().first()
-
-        if not user:
-            raise InvalidTokenException()
-
-        new_payload = {
-            "user_id": str(user.roll_no),
-            "user_type": "student",
-            "college_id": str(user.college_id),
-        }
-
-    elif user_type == "teacher":
-        query = select(Teacher).where(Teacher.teacher_id == user_id)
-        result = await db.execute(query)
-        user = result.scalars().first()
-
-        if not user:
-            raise InvalidTokenException()
-
-        new_payload = {
-            "user_id": str(user.teacher_id),
-            "user_type": "teacher",
-            "college_id": str(user.college_id),
-            "role": str(user.role),  # ← Include role for consistency with login payload
-        }
-
-    else:
+    
+    # Step 2: Find student in DB
+    query = select(Student).where(Student.roll_no == payload.get("user_id"))
+    result = await db.execute(query)
+    student = result.scalars().first()
+    
+    if not student:
         raise InvalidTokenException()
-
+    
     # Step 3: Create new access_token
+    new_payload = {
+        "user_id": str(student.roll_no),
+        "user_type": "student",
+        "college_id": str(student.college_id)
+    }
     new_access_token = create_access_token(new_payload)
-
-    # Step 4: Return new token
+    
+    # Step 4: Return new token (explicitly create schema)
     return TokenSchema(
         access_token=new_access_token,
-        token_type="bearer",
-        user_name=user.name
+        token_type="bearer"
     )
 
 

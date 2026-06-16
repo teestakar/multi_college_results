@@ -18,7 +18,7 @@ class College(Base):
     # Relationships
     students = relationship("Student", back_populates="college")
     teachers = relationship("Teacher", back_populates="college")
-    marks = relationship("Mark", back_populates="college")
+   # marks = relationship("Mark", back_populates="college")
     upload_batches = relationship("UploadBatch", back_populates="college")
 
 
@@ -26,21 +26,25 @@ class College(Base):
 class Student(Base):
     __tablename__ = "students"
     
-    roll_no = Column(String(50), primary_key=True)  # "2024052002052" - LOGIN ID
-    password_hash = Column(String(255), nullable=False)  # bcrypt hashed
-    name = Column(String(255), nullable=False)  # "TEESTA KAR"
-    email = Column(String, nullable=True)
-    registration_no = Column(String(100))  # "104202405200524 of 2024-25"
-    degree = Column(String(50))  # "B.Tech"
-    branch = Column(String(50))  # "CSE", "ECE"
-    year = Column(Integer)  # 1, 2, 3, 4
+    roll_no = Column(String(50), primary_key=True)
     college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), primary_key=True)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255))
+    registration_no = Column(String(100))
+    degree = Column(String(50))
+    branch = Column(String(50))
+    year = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
     college = relationship("College", back_populates="students")
-    marks = relationship("Mark", back_populates="student")
-
+    marks = relationship(
+        "Mark",
+        back_populates="student",
+        foreign_keys="[Mark.roll_no, Mark.college_id]",
+        primaryjoin="and_(Student.roll_no==Mark.roll_no, Student.college_id==Mark.college_id)"
+    )
 
 # ==================== TEACHERS TABLE ====================
 class Teacher(Base):
@@ -61,6 +65,8 @@ class Teacher(Base):
 
 
 # ==================== MARKS TABLE ====================
+from sqlalchemy import and_
+
 class Mark(Base):
     __tablename__ = "marks"
     
@@ -78,16 +84,19 @@ class Mark(Base):
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    student = relationship("Student", back_populates="marks")
-    college = relationship("College", back_populates="marks")
+    student = relationship(
+        "Student",
+        back_populates="marks",
+        foreign_keys=[roll_no, college_id],
+        primaryjoin="and_(Mark.roll_no==Student.roll_no, Mark.college_id==Student.college_id)"
+    )
     uploaded_by_teacher = relationship("Teacher", back_populates="marks")
 
     __table_args__ = (
-        Index('idx_mark_student', 'roll_no', 'college_id'),
+        Index('idx_mark_student_college', 'roll_no', 'college_id'),
+        Index('idx_mark_college_semester', 'college_id', 'semester'),
         Index('idx_mark_college', 'college_id'),
     )
-
-    
 
 # ==================== UPLOAD BATCHES TABLE ====================
 class UploadBatch(Base):
