@@ -186,26 +186,48 @@ async def refresh(request: RefreshRequest, db: AsyncSession = Depends(get_db)) -
     except Exception:
         raise InvalidTokenException()
     
-    # Step 2: Find student in DB
-    query = select(Student).where(Student.roll_no == payload.get("user_id"))
-    result = await db.execute(query)
-    student = result.scalars().first()
-    
-    if not student:
+    # Step 2: Find user in DB (student or teacher)
+    user_id = payload.get("user_id")
+    college_id = payload.get("college_id")
+    user_type = payload.get("user_type")
+
+    if not user_id or not college_id or not user_type:
         raise InvalidTokenException()
-    
+
+    if user_type == "teacher":
+        result = await db.execute(
+            select(Teacher).where(
+                (Teacher.teacher_id == user_id) &
+                (Teacher.college_id == college_id)
+            )
+        )
+    elif user_type == "student":
+        result = await db.execute(
+            select(Student).where(
+                (Student.roll_no == user_id) &
+                (Student.college_id == college_id)
+            )
+        )
+    else:
+        raise InvalidTokenException()
+
+    user = result.scalars().first()
+    if not user:
+        raise InvalidTokenException()
+
     # Step 3: Create new access_token
     new_payload = {
-        "user_id": str(student.roll_no),
-        "user_type": "student",
-        "college_id": str(student.college_id)
+        "user_id": str(user_id),
+        "user_type": user_type,
+        "college_id": str(college_id)
     }
     new_access_token = create_access_token(new_payload)
     
     # Step 4: Return new token (explicitly create schema)
     return TokenSchema(
         access_token=new_access_token,
-        token_type="bearer"
+        token_type="bearer",
+        user_name=user.name 
     )
 
 
