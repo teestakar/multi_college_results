@@ -150,3 +150,15 @@ class CollegeAdminResponseSchema(BaseModel):
     status: str = "success"
     college_id: str
     admin_id: str
+
+
+# ==================== CSV UPLOAD SCHEMAS ====================
+class CSVUploadResponseSchema(BaseModel):
+    """Response after CSV upload"""
+    message: str
+    status: str = "success"
+    inserted: int
+    updated: int
+    skipped: int
+    failed: int
+    errors: list = []  # List of error objects

@@ -11,3 +11,4 @@ email-validator
 passlib
 alembic
 psycopg2
+python-multipart-0.0.32

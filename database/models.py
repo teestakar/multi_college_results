@@ -34,7 +34,7 @@ class Student(Base):
     degree = Column(String(50))  # "B.Tech"
     branch = Column(String(50))  # "CSE", "ECE"
     year = Column(Integer)  # 1, 2, 3, 4
-    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
+    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -66,16 +66,16 @@ class Mark(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     roll_no = Column(String(50), ForeignKey("students.roll_no"), nullable=False)
-    semester = Column(Integer, nullable=False)  # 1, 2, 3, etc
-    subject_code = Column(String(50), nullable=False)  # "BSM301"
-    subject_name = Column(String(255), nullable=False)  # "Mathematics-III"
-    grade = Column(String(5), nullable=False)  # "O", "A", "B", "E"
-    points = Column(Float, nullable=False)  # 10.0, 7.0, 9.0
-    credits = Column(Float, nullable=False)  # 3.0, 2.0, 0.5
-    credit_points = Column(Float, nullable=False)  # 30.0, 21.0
+    college_id = Column(UUID(as_uuid=True), ForeignKey("students.college_id"), nullable=False)
+    semester = Column(Integer, nullable=False)
+    subject_code = Column(String(50), nullable=False)
+    subject_name = Column(String(255), nullable=False)
+    grade = Column(String(5), nullable=False)
+    points = Column(Float, nullable=False)
+    credits = Column(Float, nullable=False)
+    credit_points = Column(Float, nullable=False)
     uploaded_by = Column(String(50), ForeignKey("teachers.teacher_id"))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
-    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)  # CRITICAL for multi-tenancy
     
     # Relationships
     student = relationship("Student", back_populates="marks")
@@ -83,11 +83,11 @@ class Mark(Base):
     uploaded_by_teacher = relationship("Teacher", back_populates="marks")
 
     __table_args__ = (
-        Index('idx_mark_student_college', 'roll_no', 'college_id'),
-        Index('idx_mark_college_semester', 'college_id', 'semester'),
+        Index('idx_mark_student', 'roll_no', 'college_id'),
         Index('idx_mark_college', 'college_id'),
     )
 
+    
 
 # ==================== UPLOAD BATCHES TABLE ====================
 class UploadBatch(Base):
