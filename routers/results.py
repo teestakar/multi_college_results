@@ -8,6 +8,11 @@ from database.database import get_db
 from database.models import Student, Mark, Teacher
 from database.schemas import ResultsResponseSchema, MarkResponseSchema, CSVUploadResponseSchema
 from auth.dependencies import get_current_user
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from fastapi import Request
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 
@@ -17,13 +22,14 @@ router = APIRouter()
 # ============================================================================
 
 @router.get("/me")
+@limiter.limit("100/hour")
 async def get_my_results(
-    semester: int = Query(None, description="Filter by semester (1, 2, 3, etc)"),
-    limit: int = Query(20, ge=1, le=100, description="Results per page"),
-    offset: int = Query(0, ge=0, description="Starting position"),
-    current_user: Student = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-) -> ResultsResponseSchema:
+    request: Request, 
+    semester: int = Query(None), 
+    limit: int = Query(20, ge=1, le=100), 
+    offset: int = Query(0, ge=0), 
+    current_user: Student = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)) -> ResultsResponseSchema:
     """
     Get student's results/marks
     
@@ -85,11 +91,12 @@ async def get_my_results(
 # ============================================================================
 
 @router.post("/upload-csv")
+@limiter.limit("5/hour")
 async def upload_csv(
-    file: UploadFile = File(...),
-    current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-) -> CSVUploadResponseSchema:
+    request: Request, 
+    file: UploadFile = File(...), 
+    current_user = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)) -> CSVUploadResponseSchema:
     """
     Upload marks via CSV file (teacher/admin only)
     
@@ -282,11 +289,12 @@ async def upload_csv(
 # ============================================================================
 
 @router.get("/statistics")
+@limiter.limit("100/hour")
 async def get_statistics(
-    semester: int = Query(None, description="Filter by semester (optional)"),
-    current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+    request: Request, 
+    semester: int = Query(None), 
+    current_user = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)) -> dict:
     """
     Get result statistics for the college (admin/teacher only)
     

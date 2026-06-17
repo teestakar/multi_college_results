@@ -6,6 +6,10 @@ from database.database import init_db, engine
 from routers.health import router as health_router
 from routers.auth import router as auth_router
 from routers.results import router as results_router
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 
 # ==================== STARTUP/SHUTDOWN ====================
 async def startup():
@@ -39,6 +43,19 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Add rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+# Handle rate limit errors
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request, exc):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many requests. Please try again later."}
+    )
+
 
 # ==================== CORS ====================
 # Allow frontend to make requests from different domain

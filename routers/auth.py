@@ -24,6 +24,11 @@ from auth.auth import (
 )
 from auth.dependencies import get_current_user
 from auth.exceptions import InvalidTokenException
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from fastapi import Request
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 
@@ -32,10 +37,12 @@ router = APIRouter()
 # ============================================================================
 
 @router.post("/college-register")
+@limiter.limit("3/hour")
 async def register_college_and_admin(
+    request: Request, 
     register_data: CollegeAdminRegisterSchema,
-    db: AsyncSession = Depends(get_db)
-) -> CollegeAdminResponseSchema:
+    db: AsyncSession = Depends(get_db)) -> CollegeAdminResponseSchema:
+
     """
     Register a new college and create the first admin
     
@@ -107,7 +114,8 @@ async def register_college_and_admin(
 # ============================================================================
 
 @router.post("/login")
-async def login(login_data: StudentLoginSchema, db: AsyncSession = Depends(get_db)) -> TokenSchema:
+@limiter.limit("5/minute")
+async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSession = Depends(get_db)) -> TokenSchema:
     """
     Student login endpoint
     
@@ -172,7 +180,8 @@ async def login(login_data: StudentLoginSchema, db: AsyncSession = Depends(get_d
 # ============================================================================
 
 @router.post("/refresh")
-async def refresh(request: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenSchema:
+@limiter.limit("10/minute")
+async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenSchema:
     """
     Refresh endpoint
     
@@ -236,11 +245,12 @@ async def refresh(request: RefreshRequest, db: AsyncSession = Depends(get_db)) -
 # ============================================================================
 
 @router.post("/register")
+@limiter.limit("20/hour")
 async def register_student(
-    register_data: StudentRegisterSchema,
-    current_user: Teacher = Depends(get_current_user),  # ← Gets current logged-in teacher/admin
-    db: AsyncSession = Depends(get_db)
-) -> MessageSchema:
+    request: Request, 
+    register_data: StudentRegisterSchema, 
+    current_user: Teacher = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)) -> MessageSchema:
     """
     Register new student (admin only)
     
@@ -306,7 +316,8 @@ async def register_student(
 # ============================================================================
 
 @router.post("/teacher/login")
-async def teacher_login(login_data: TeacherLoginSchema, db: AsyncSession = Depends(get_db)) -> TokenSchema:
+@limiter.limit("5/minute")
+async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: AsyncSession = Depends(get_db)) -> TokenSchema:
     """
     Teacher login endpoint
     
@@ -364,11 +375,13 @@ async def teacher_login(login_data: TeacherLoginSchema, db: AsyncSession = Depen
 # ============================================================================
 
 @router.post("/teacher/register")
+@limiter.limit("20/hour")
 async def register_teacher(
-    register_data: TeacherRegisterSchema,
-    current_user: Teacher = Depends(get_current_user),  # ← Gets current logged-in teacher/admin
-    db: AsyncSession = Depends(get_db)
-) -> MessageSchema:
+    request: Request, 
+    register_data: TeacherRegisterSchema, 
+    current_user: Teacher = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)) -> MessageSchema:
+    
     """
     Register new teacher (admin only)
     
