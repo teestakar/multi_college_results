@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Multi-College Result Platform</title>
+    <title>Teacher Login - Multi-College Result Platform</title>
     <style>
         * {
             margin: 0;
@@ -54,8 +54,7 @@
             font-weight: 500;
         }
         
-        .form-group input,
-        .form-group select {
+        .form-group input {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
@@ -63,21 +62,13 @@
             font-size: 14px;
         }
         
-        .form-group input:focus,
-        .form-group select:focus {
+        .form-group input:focus {
             outline: none;
             border-color: #667eea;
         }
         
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .login-btn,
-        .link-btn {
-            flex: 1;
+        .login-btn {
+            width: 100%;
             padding: 12px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -86,18 +77,11 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-        }
-        
-        .link-btn {
-            background: #667eea;
+            margin-bottom: 20px;
         }
         
         .login-btn:hover {
             opacity: 0.9;
-        }
-        
-        .link-btn:hover {
-            background: #5568d3;
         }
         
         .login-btn:disabled {
@@ -148,7 +132,6 @@
         
         .links {
             text-align: center;
-            margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #ddd;
         }
@@ -168,20 +151,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>👨‍🎓 Student Login</h1>
-        <p class="subtitle">Sign in to view your results</p>
+        <h1>👨‍🏫 Teacher Login</h1>
+        <p class="subtitle">Sign in to manage results</p>
         
-        <form id="loginForm">
+        <form id="teacherLoginForm">
             <div class="form-group">
-                <label for="college">College:</label>
-                <select id="college" required>
-                    <option value="">-- Select College --</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label for="rollNo">Roll No:</label>
-                <input type="text" id="rollNo" placeholder="e.g., 12024001" required>
+                <label for="teacherId">Teacher ID:</label>
+                <input type="text" id="teacherId" placeholder="Enter your teacher ID" required>
             </div>
             
             <div class="form-group">
@@ -200,13 +176,12 @@
         <div class="message" id="message"></div>
         
         <div class="links">
-            <p style="font-size: 12px; color: #999; margin-bottom: 15px;">Are you a teacher?</p>
-            <a href="teacher-login.html">👨‍🏫 Teacher Login</a>
+            <a href="index.html">👨‍🎓 Student Login</a>
             <a href="admin-register.html">🏛️ Register New College</a>
         </div>
     </div>
     
     <script src="api.js"></script>
-    <script src="login.js"></script>
+    <script src="teacher-login.js"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Multi-College Result Platform</title>
+    <title>Register College - Multi-College Result Platform</title>
     <style>
         * {
             margin: 0;
@@ -18,6 +18,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
         
         .container {
@@ -26,7 +27,7 @@
             border-radius: 10px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             width: 100%;
-            max-width: 400px;
+            max-width: 500px;
         }
         
         .container h1 {
@@ -55,29 +56,28 @@
         }
         
         .form-group input,
-        .form-group select {
+        .form-group textarea {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 14px;
+            font-family: inherit;
         }
         
         .form-group input:focus,
-        .form-group select:focus {
+        .form-group textarea:focus {
             outline: none;
             border-color: #667eea;
         }
         
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
         }
         
-        .login-btn,
-        .link-btn {
-            flex: 1;
+        .register-btn {
+            width: 100%;
             padding: 12px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -86,31 +86,24 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
+            margin-bottom: 20px;
         }
         
-        .link-btn {
-            background: #667eea;
-        }
-        
-        .login-btn:hover {
+        .register-btn:hover {
             opacity: 0.9;
         }
         
-        .link-btn:hover {
-            background: #5568d3;
-        }
-        
-        .login-btn:disabled {
+        .register-btn:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
         
         .message {
-            margin-top: 15px;
             padding: 12px;
             border-radius: 5px;
             text-align: center;
             display: none;
+            margin-bottom: 20px;
         }
         
         .message.success {
@@ -148,7 +141,6 @@
         
         .links {
             text-align: center;
-            margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #ddd;
         }
@@ -168,45 +160,52 @@
 </head>
 <body>
     <div class="container">
-        <h1>👨‍🎓 Student Login</h1>
-        <p class="subtitle">Sign in to view your results</p>
+        <h1>🏛️ Register New College</h1>
+        <p class="subtitle">Set up your institution</p>
         
-        <form id="loginForm">
+        <form id="registerForm">
             <div class="form-group">
-                <label for="college">College:</label>
-                <select id="college" required>
-                    <option value="">-- Select College --</option>
-                </select>
+                <label for="collegeName">College Name:</label>
+                <input type="text" id="collegeName" placeholder="e.g., Institute of Engineering & Management" required>
             </div>
             
             <div class="form-group">
-                <label for="rollNo">Roll No:</label>
-                <input type="text" id="rollNo" placeholder="e.g., 12024001" required>
+                <label for="collegeCode">College Code:</label>
+                <input type="text" id="collegeCode" placeholder="e.g., IEM" maxlength="10" required>
             </div>
             
             <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" placeholder="Enter password" required>
+                <label for="adminName">Admin Name:</label>
+                <input type="text" id="adminName" placeholder="Full name of admin" required>
             </div>
             
-            <button type="submit" class="login-btn" id="loginBtn">Login</button>
+            <div class="form-group">
+                <label for="adminEmail">Admin Email:</label>
+                <input type="email" id="adminEmail" placeholder="admin@college.edu" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="adminPassword">Admin Password:</label>
+                <input type="password" id="adminPassword" placeholder="Create a strong password" required>
+            </div>
+            
+            <button type="submit" class="register-btn" id="registerBtn">Register College</button>
             
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Logging in...</p>
+                <p>Registering...</p>
             </div>
         </form>
         
         <div class="message" id="message"></div>
         
         <div class="links">
-            <p style="font-size: 12px; color: #999; margin-bottom: 15px;">Are you a teacher?</p>
+            <a href="index.html">👨‍🎓 Student Login</a>
             <a href="teacher-login.html">👨‍🏫 Teacher Login</a>
-            <a href="admin-register.html">🏛️ Register New College</a>
         </div>
     </div>
     
     <script src="api.js"></script>
-    <script src="login.js"></script>
+    <script src="admin-register.js"></script>
 </body>
 </html>

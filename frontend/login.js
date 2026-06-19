@@ -1,7 +1,3 @@
-// ==================== CONFIGURATION ====================
-const API_BASE_URL = 'http://localhost:8000';  // Backend URL
-const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`;
-
 // ==================== DOM ELEMENTS ====================
 const loginForm = document.getElementById('loginForm');
 const collegeSelect = document.getElementById('college');
@@ -11,32 +7,78 @@ const loginBtn = document.getElementById('loginBtn');
 const messageDiv = document.getElementById('message');
 const loadingDiv = document.getElementById('loading');
 
-// ==================== EVENT LISTENERS ====================
-loginForm.addEventListener('submit', handleLogin);
+// ==================== PAGE LOAD ====================
+document.addEventListener('DOMContentLoaded', function() {
+    // If already logged in as student, go to dashboard
+    const accessToken = localStorage.getItem('access_token');
+    const userType = localStorage.getItem('user_type');
+    
+    if (accessToken && userType === 'student') {
+        window.location.href = 'student-dashboard.html';
+    }
+    
+    // Load colleges (hardcoded for now)
+    loadColleges();
+});
+
+// ==================== LOAD COLLEGES ====================
+// ==================== LOAD COLLEGES FROM DATABASE ====================
+async function loadColleges() {
+    try {
+        // Fetch colleges from backend
+        const response = await fetch(`${API_BASE_URL}/api/auth/colleges`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load colleges');
+        }
+        
+        const colleges = await response.json();
+        
+        collegeSelect.innerHTML = '<option value="">-- Select College --</option>';
+        
+        if (!colleges || colleges.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No colleges registered yet';
+            option.disabled = true;
+            collegeSelect.appendChild(option);
+            return;
+        }
+        
+        // Add each college as option
+        colleges.forEach(college => {
+            const option = document.createElement('option');
+            option.value = college.code;
+            option.textContent = college.name;
+            collegeSelect.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error loading colleges:', error);
+        showMessage('message', '⚠️ Could not load colleges. Please refresh.', 'error');
+    }
+}
 
 // ==================== LOGIN HANDLER ====================
+loginForm.addEventListener('submit', handleLogin);
+
 async function handleLogin(event) {
-    event.preventDefault();  // Stop form from refreshing page
+    event.preventDefault();
     
-    // Get form values
     const collegeCode = collegeSelect.value;
     const rollNo = rollNoInput.value;
     const password = passwordInput.value;
     
-    // Validate inputs
     if (!collegeCode || !rollNo || !password) {
-        showMessage('Please fill all fields', 'error');
+        showMessage('message', '❌ Please fill all fields', 'error');
         return;
     }
     
-    // Show loading state
     loadingDiv.style.display = 'block';
     loginBtn.disabled = true;
-    messageDiv.style.display = 'none';
     
     try {
-        // Send login request to backend
-        const response = await fetch(LOGIN_ENDPOINT, {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -50,51 +92,28 @@ async function handleLogin(event) {
         
         const data = await response.json();
         
-        // Check if login was successful
         if (response.ok) {
-            // Save tokens to localStorage
             localStorage.setItem('access_token', data.access_token);
             localStorage.setItem('refresh_token', data.refresh_token);
             localStorage.setItem('user_roll_no', rollNo);
-            localStorage.setItem('college_code', collegeCode);
             localStorage.setItem('user_name', data.user_name);
-
-            // Show success message
-            showMessage('✅ Login successful! Redirecting...', 'success');
+            localStorage.setItem('college_code', collegeCode);
+            localStorage.setItem('user_type', 'student');
             
-            // Redirect to dashboard after 1.5 seconds
+            showMessage('message', '✅ Login successful! Redirecting...', 'success');
+            
             setTimeout(() => {
-                window.location.href = 'dashboard.html';
+                window.location.href = 'student-dashboard.html';
             }, 1500);
         } else {
-            // Show error message from backend
-            const errorMsg = data.detail || 'Login failed. Please try again.';
-            showMessage(`❌ ${errorMsg}`, 'error');
+            const errorMsg = data.detail || 'Login failed';
+            showMessage('message', `❌ ${errorMsg}`, 'error');
         }
     } catch (error) {
-        // Network error or JSON parsing error
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        showMessage('message', `❌ Error: ${error.message}`, 'error');
         console.error('Login error:', error);
     } finally {
-        // Hide loading state
         loadingDiv.style.display = 'none';
         loginBtn.disabled = false;
     }
 }
-
-// ==================== HELPER FUNCTION ====================
-function showMessage(text, type) {
-    messageDiv.textContent = text;
-    messageDiv.className = `message ${type}`;
-    messageDiv.style.display = 'block';
-}
-
-// ==================== PAGE LOAD ====================
-document.addEventListener('DOMContentLoaded', function() {
-    // Optional: Check if already logged in, redirect to dashboard
-    const accessToken = localStorage.getItem('access_token');
-    if (accessToken) {
-        // Uncomment this after we create dashboard.html
-        // window.location.href = 'dashboard.html';
-    }
-});

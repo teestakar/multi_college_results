@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Multi-College Result Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .navbar h1 {
+            font-size: 24px;
+        }
+        
+        .navbar-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .user-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .logout-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .welcome-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #667eea;
+        }
+        
+        .welcome-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 28px;
+        }
+        
+        .welcome-section p {
+            color: #666;
+            margin: 5px 0;
+            font-size: 16px;
+        }
+        
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 40px;
+        }
+        
+        .action-card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .action-card .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .action-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        
+        .action-card p {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .action-card a {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            transition: opacity 0.3s;
+        }
+        
+        .action-card a:hover {
+            opacity: 0.9;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .navbar h1 {
+                font-size: 18px;
+            }
+            
+            .actions-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .welcome-section h2 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h1>📚 Multi-College Result Platform</h1>
+        <div class="navbar-right">
+            <span class="user-label" id="userLabel">Loading...</span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="message" id="message"></div>
+        
+        <div class="welcome-section">
+            <h2>Welcome, <span id="welcomeName">Teacher</span>! 👨‍🏫</h2>
+            <p><strong>Teacher ID:</strong> <span id="teacherId">Loading...</span></p>
+            <p><strong>College Name:</strong> <span id="collegeName">Loading...</span></p>
+            <p><strong>College ID:</strong> <span id="collegeId">Loading...</span></p>
+            <p><strong>Role:</strong> <span id="role">Loading...</span></p>
+        </div>
+        
+        <h3 style="color: #333; margin-bottom: 20px;">Quick Actions</h3>
+        
+        <div class="actions-grid">
+            <!-- CSV Upload -->
+            <div class="action-card">
+                <div class="icon">📤</div>
+                <h3>Upload Results</h3>
+                <p>Upload student marks via CSV file</p>
+                <a href="csv-upload.html">Go to Upload →</a>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="action-card">
+                <div class="icon">📊</div>
+                <h3>View Statistics</h3>
+                <p>See results analysis and insights</p>
+                <a href="statistics.html">View Stats →</a>
+            </div>
+            
+            <!-- Student Management (if admin) -->
+            <div class="action-card" id="adminCard" style="display: none;">
+                <div class="icon">👥</div>
+                <h3>Manage Students</h3>
+                <p>Register and manage students</p>
+                <a href="student-register.html">Manage →</a>
+            </div>
+        </div>
+    </div>
+    
+    <script src="api.js"></script>
+    <script src="teacher-dashboard.js"></script>
+</body>
+</html>

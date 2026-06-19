@@ -108,6 +108,23 @@ async def register_college_and_admin(
         admin_id=admin_teacher_id
     )
 
+@router.get("/colleges")
+async def get_colleges(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(College)
+    )
+
+    colleges = result.scalars().all()
+
+    return [
+        {
+            "code": college.college_code,
+            "name": college.name
+        }
+        for college in colleges
+    ]
+
+
 
 # ============================================================================
 # 1. LOGIN ENDPOINT
@@ -165,6 +182,9 @@ async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSessi
     }
     access_token = create_access_token(payload)
     refresh_token = create_refresh_token(payload)
+
+    print("ACCESS:", access_token)
+    print("REFRESH:", refresh_token)
     
     # Step 5: Return tokens (explicitly create schema)
     return TokenSchema(
@@ -191,7 +211,7 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
     
     # Step 1: Validate refresh_token
     try:
-        payload = decode_token(request.refresh_token)
+        payload = decode_token(request_data.refresh_token)
     except Exception:
         raise InvalidTokenException()
     
@@ -368,6 +388,35 @@ async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: As
         token_type="bearer",
         user_name=teacher.name
     )
+
+
+# ============================================================================
+# TEACHER role endpoint
+# ============================================================================
+from sqlalchemy import select
+from database.models import College
+
+@router.get("/teacher/me")
+async def get_teacher_profile(
+    current_user: Teacher = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(College).where(
+            College.id == current_user.college_id
+        )
+    )
+
+    college = result.scalar_one_or_none()
+
+    return {
+        "teacher_id": current_user.teacher_id,
+        "name": current_user.name,
+        "role": current_user.role,
+        "college_id": str(current_user.college_id),
+        "college_name": college.name if college else "Unknown"
+    }
+
 
 
 # ============================================================================
