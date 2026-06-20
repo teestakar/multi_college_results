@@ -22,6 +22,46 @@ class College(Base):
     upload_batches = relationship("UploadBatch", back_populates="college")
 
 
+# ==================== DEGREES TABLE ====================
+class Degree(Base):
+    __tablename__ = "degrees"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
+    name = Column(String(100), nullable=False)  # "B.Tech", "M.Tech", etc
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    college = relationship("College", backref="degrees")
+    students = relationship("Student", back_populates="degree_obj")
+    branches = relationship("Branch", back_populates="degree_obj")
+    
+    __table_args__ = (
+        Index('idx_degree_college_name', 'college_id', 'name'),
+    )
+
+
+# ==================== BRANCHES TABLE ====================
+class Branch(Base):
+    __tablename__ = "branches"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    degree_id = Column(UUID(as_uuid=True), ForeignKey("degrees.id"), nullable=False)
+    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
+    name = Column(String(100), nullable=False)  # "CSE", "ECE", "ME", etc
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    degree_obj = relationship("Degree", back_populates="branches")
+    college = relationship("College", backref="branches")
+    students = relationship("Student", back_populates="branch_obj")
+    
+    __table_args__ = (
+        Index('idx_branch_degree_name', 'degree_id', 'name'),
+        Index('idx_branch_college_name', 'college_id', 'name'),
+    )
+
+
 # ==================== STUDENTS TABLE ====================
 class Student(Base):
     __tablename__ = "students"
@@ -31,20 +71,23 @@ class Student(Base):
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
     email = Column(String(255))
-    registration_no = Column(String(100))
-    degree = Column(String(50))
-    branch = Column(String(50))
+    # REMOVED: registration_no = Column(String(100))
+    degree_id = Column(UUID(as_uuid=True), ForeignKey("degrees.id"), nullable=False)  # ← NEW
+    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False)  # ← NEW
     year = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
     college = relationship("College", back_populates="students")
+    degree_obj = relationship("Degree", back_populates="students")  # ← NEW
+    branch_obj = relationship("Branch", back_populates="students")  # ← NEW
     marks = relationship(
         "Mark",
         back_populates="student",
         foreign_keys="[Mark.roll_no, Mark.college_id]",
         primaryjoin="and_(Student.roll_no==Mark.roll_no, Student.college_id==Mark.college_id)"
     )
+
 
 # ==================== TEACHERS TABLE ====================
 class Teacher(Base):
@@ -116,3 +159,40 @@ class UploadBatch(Base):
     # Relationships
     college = relationship("College", back_populates="upload_batches")
     uploaded_by_teacher = relationship("Teacher", back_populates="upload_batches")
+
+
+    # ==================== SEMESTER GPA TABLE ====================
+class SemesterGPA(Base):
+    __tablename__ = "semester_gpa"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    roll_no = Column(String(50), ForeignKey("students.roll_no"), nullable=False)
+    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
+    semester = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)  # Batch year
+    degree_id = Column(UUID(as_uuid=True), ForeignKey("degrees.id"), nullable=False)
+    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False)
+    
+    # SGPA & Credits
+    sgpa = Column(Float, nullable=False)
+    total_credits = Column(Float, nullable=False)
+    total_credit_points = Column(Float, nullable=False)
+    
+    # Status
+    status = Column(String(50), nullable=False)  # "pass", "pass_with_backlog", "fail"
+    backlog_count = Column(Integer, default=0)  # How many subjects < 6.0
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("Student", backref="semester_gpas")
+    college = relationship("College", backref="semester_gpas")
+    degree_obj = relationship("Degree", backref="semester_gpas")
+    branch_obj = relationship("Branch", backref="semester_gpas")
+    
+    __table_args__ = (
+        Index('idx_semgpa_student_sem', 'roll_no', 'college_id', 'semester'),
+        Index('idx_semgpa_college_sem', 'college_id', 'semester'),
+        Index('idx_semgpa_degree_sem', 'degree_id', 'semester'),
+        Index('idx_semgpa_branch_sem', 'branch_id', 'semester'),
+    )

@@ -84,7 +84,7 @@
         
         .actions-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 25px;
             margin-top: 40px;
         }
@@ -211,12 +211,20 @@
                 <a href="statistics.html">View Stats →</a>
             </div>
             
-            <!-- Student Management (if admin) -->
-            <div class="action-card" id="adminCard" style="display: none;">
-                <div class="icon">👥</div>
-                <h3>Manage Students</h3>
-                <p>Register and manage students</p>
-                <a href="student-register.html">Manage →</a>
+            <!-- Register Student (Admin Only) -->
+            <div class="action-card" id="studentRegisterCard" style="display: none;">
+                <div class="icon">👨‍🎓</div>
+                <h3>Register Student</h3>
+                <p>Add new student to the system</p>
+                <a href="student-register.html">Register →</a>
+            </div>
+            
+            <!-- Register Teacher (Admin Only) -->
+            <div class="action-card" id="teacherRegisterCard" style="display: none;">
+                <div class="icon">👨‍🏫</div>
+                <h3>Register Teacher</h3>
+                <p>Add new teacher to the system</p>
+                <a href="teacher-register.html">Register →</a>
             </div>
         </div>
     </div>

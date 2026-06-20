@@ -5,7 +5,7 @@ const RESULTS_PER_PAGE = 20;
 let currentPage = 0;
 let allResults = [];
 let filteredResults = [];
-
+let sgpaData = null;
 // ==================== DOM ELEMENTS ====================
 const userNameEl = document.getElementById('userName');
 const userRollNoEl = document.getElementById('userRollNo');
@@ -56,7 +56,7 @@ async function fetchResults() {
 
     try {
         // Build query
-        let query = '/api/results/me?limit=100';  // Get all results at once
+        let query = `/api/results/me?limit=100&semester=${semester}`; // Get all results at once
         
         const response = await apiCall(query);
 
@@ -91,6 +91,7 @@ async function fetchResults() {
         
         const data = await response.json();
         allResults = data.results || [];
+        sgpaData = data.sgpa || null;
         
         // Reset pagination and filter
         currentPage = 0;
@@ -135,9 +136,38 @@ function displayResults() {
     const startIdx = currentPage * RESULTS_PER_PAGE;
     const endIdx = startIdx + RESULTS_PER_PAGE;
     const pageResults = filteredResults.slice(startIdx, endIdx);
+
+    
     
     // Create table
-    let html = `
+    let html = '';
+
+    if (sgpaData) {
+        html += `
+            <div class="sgpa-card">
+                <div class="sgpa-item">
+                    <div class="sgpa-label">SGPA</div>
+                    <div class="sgpa-value">${sgpaData.sgpa}</div>
+                </div>
+
+                <div class="sgpa-item">
+                    <div class="sgpa-label">Status</div>
+                    <div class="sgpa-value" style="font-size:16px">
+                        ${sgpaData.status}
+                    </div>
+                </div>
+
+                <div class="sgpa-item">
+                    <div class="sgpa-label">Backlogs</div>
+                    <div class="sgpa-value">
+                        ${sgpaData.backlog_count}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    html += `
         <table class="results-table">
             <thead>
                 <tr>

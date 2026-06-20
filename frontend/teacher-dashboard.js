@@ -5,11 +5,14 @@ const collegeIdEl = document.getElementById('collegeId');
 const collegeNameEl = document.getElementById('collegeName');
 const roleEl = document.getElementById('role');
 const userLabelEl = document.getElementById('userLabel');
-const adminCardEl = document.getElementById('adminCard');
+const studentRegisterCardEl = document.getElementById('studentRegisterCard');
+const teacherRegisterCardEl = document.getElementById('teacherRegisterCard');
 const messageDiv = document.getElementById('message');
 
 // ==================== PAGE LOAD ====================
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Teacher dashboard page loaded');
+    
     // Check if logged in as teacher
     const accessToken = localStorage.getItem('access_token');
     const userType = localStorage.getItem('user_type');
@@ -19,57 +22,53 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    // Display teacher info
-  //  const teacherId = localStorage.getItem('teacher_id');
+    // Display teacher info from localStorage
     const userName = localStorage.getItem('user_name');
-    //const collegeCode = localStorage.getItem('college_code');
-   // const role = localStorage.getItem('teacher_role');
     
     welcomeNameEl.textContent = userName ? userName.split(' ')[0] : 'Teacher';
-    //teacherIdEl.textContent = teacherId || 'Unknown';
-    //collegeIdEl.textContent = collegeCode || 'Unknown';
-  //  roleEl.textContent = role ? (role === 'admin' ? 'Admin' : 'Teacher') : 'Teacher';
     userLabelEl.textContent = `👨‍🏫 ${userName || 'Teacher'}`;
-
-    loadTeacherProfile();
     
-    // Show admin card if user is admin
-   // if (role === 'admin') {
-     //   adminCardEl.style.display = 'block';
-    //}
+    // Load full profile from backend
+    loadTeacherProfile();
 });
 
-// ==================== Teacher info fetch ====================
+// ==================== LOAD TEACHER PROFILE ====================
 async function loadTeacherProfile() {
     try {
+        console.log('Loading teacher profile...');
+        
         const response = await apiCall('/api/auth/teacher/me');
 
         if (!response || !response.ok) {
+            console.error('Failed to load teacher profile, logging out');
             logout();
             return;
         }
 
         const data = await response.json();
+        console.log('Teacher profile data:', data);
 
+        // Update UI with profile data
         teacherIdEl.textContent = data.teacher_id;
-        roleEl.textContent = data.role;
+        roleEl.textContent = data.role === 'admin' ? 'Admin' : 'Teacher';
         collegeNameEl.textContent = data.college_name;
         collegeIdEl.textContent = data.college_id;
 
+        // Show admin cards only if user is admin
         if (data.role === 'admin') {
-            adminCardEl.style.display = 'block';
+            studentRegisterCardEl.style.display = 'block';
+            teacherRegisterCardEl.style.display = 'block';
         }
 
     } catch (error) {
-        console.error(error);
+        console.error('Error loading teacher profile:', error);
         logout();
     }
 }
 
-
-
 // ==================== LOGOUT ====================
 function logout() {
+    console.log('Logging out...');
     localStorage.clear();
     window.location.href = 'teacher-login.html';
 }

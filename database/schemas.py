@@ -20,7 +20,7 @@ class StudentRegisterSchema(BaseModel):
     name: str = Field(..., min_length=1)
     degree: str  # B.Tech, M.Tech, etc
     branch: str  # CSE, ECE, etc
-    year: int = Field(..., ge=1, le=4)  # 1, 2, 3, or 4
+    year: int 
 
 class StudentLoginSchema(BaseModel):
     """Schema for student login"""

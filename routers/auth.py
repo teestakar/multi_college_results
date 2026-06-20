@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from database.database import get_db
-from database.models import Student , College, Teacher
+from database.models import Student , College, Teacher, Degree, Branch
 from database.schemas import (
     StudentLoginSchema,
     StudentRegisterSchema,
@@ -183,8 +183,6 @@ async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSessi
     access_token = create_access_token(payload)
     refresh_token = create_refresh_token(payload)
 
-    print("ACCESS:", access_token)
-    print("REFRESH:", refresh_token)
     
     # Step 5: Return tokens (explicitly create schema)
     return TokenSchema(
@@ -267,7 +265,7 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
 @router.post("/register")
 @limiter.limit("20/hour")
 async def register_student(
-    request: Request, 
+    request: Request,
     register_data: StudentRegisterSchema, 
     current_user: Teacher = Depends(get_current_user), 
     db: AsyncSession = Depends(get_db)) -> MessageSchema:
@@ -280,9 +278,11 @@ async def register_student(
     Flow:
     1. Check: current_user is admin?
     2. Check: student already exists?
-    3. Hash password
-    4. Create student in admin's college
-    5. Return success
+    3. Auto-create or fetch degree
+    4. Auto-create or fetch branch
+    5. Hash password
+    6. Create student with degree + branch
+    7. Return success
     """
     
     # Step 1: Only admin can register students
@@ -306,30 +306,74 @@ async def register_student(
             detail=f"Student with roll_no '{register_data.roll_no}' already exists in this college"
         )
     
-    # Step 3: Hash password
+    # Step 3: Auto-create or fetch DEGREE
+    degree_query = select(Degree).where(
+        (Degree.college_id == current_user.college_id) &
+        (Degree.name == register_data.degree)
+    )
+    degree_result = await db.execute(degree_query)
+    degree_obj = degree_result.scalars().first()
+    
+    if not degree_obj:
+        # Create new degree
+        degree_obj = Degree(
+            college_id=current_user.college_id,
+            name=register_data.degree
+        )
+        db.add(degree_obj)
+        await db.flush()  # Get the ID without committing
+        print(f"DEBUG: Created new degree: {register_data.degree}")
+    else:
+        print(f"DEBUG: Using existing degree: {register_data.degree}")
+    
+    # Step 4: Auto-create or fetch BRANCH
+    branch_query = select(Branch).where(
+        (Branch.degree_id == degree_obj.id) &
+        (Branch.college_id == current_user.college_id) &
+        (Branch.name == register_data.branch)
+    )
+    branch_result = await db.execute(branch_query)
+    branch_obj = branch_result.scalars().first()
+    
+    if not branch_obj:
+        # Create new branch
+        branch_obj = Branch(
+            degree_id=degree_obj.id,
+            college_id=current_user.college_id,
+            name=register_data.branch
+        )
+        db.add(branch_obj)
+        await db.flush()  # Get the ID without committing
+        print(f"DEBUG: Created new branch: {register_data.branch} for degree {register_data.degree}")
+    else:
+        print(f"DEBUG: Using existing branch: {register_data.branch}")
+    
+    # Step 5: Hash password
     hashed_pwd = hash_password(register_data.password)
     
-    # Step 4: Create student in admin's college
+    # Step 6: Create student with degree + branch
     new_student = Student(
         roll_no=register_data.roll_no,
         name=register_data.name,
         email=register_data.email,
         password_hash=hashed_pwd,
-        degree=register_data.degree,
-        branch=register_data.branch,
+        degree_id=degree_obj.id,  # ← Link to degree
+        branch_id=branch_obj.id,   # ← Link to branch
         year=register_data.year,
-        college_id=current_user.college_id  # ← Auto-use admin's college
+        college_id=current_user.college_id
     )
     
     db.add(new_student)
     await db.commit()
     await db.refresh(new_student)
     
-    # Step 5: Return success
+    # Step 7: Return success
     return MessageSchema(
-        message=f"Student '{register_data.roll_no}' registered successfully",
+        message=f"Student '{register_data.roll_no}' ({register_data.degree}, {register_data.branch}, Batch {register_data.year}) registered successfully",
         status="success"
     )
+
+
 
 # ============================================================================
 # TEACHER LOGIN ENDPOINT
