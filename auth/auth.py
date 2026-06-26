@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError 
 from passlib.context import CryptContext
 from config import settings
-
+from auth.exceptions import TokenExpiredException, InvalidTokenException 
 # ==================== PASSWORD HASHING ====================
 
 # Use bcrypt for password hashing
@@ -95,7 +95,8 @@ def decode_token(token: str) -> dict:
         Decoded token data (dictionary)
     
     Raises:
-        JWTError: If token is invalid or expired
+        TokenExpiredException: If token has expired
+        InvalidTokenException: If token is invalid or malformed
     
     Example:
         payload = decode_token("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
@@ -108,9 +109,13 @@ def decode_token(token: str) -> dict:
             algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
+    
+    # ← CHANGED: Distinguish between expired and invalid
+    except ExpiredSignatureError:
+        raise TokenExpiredException()
+    
     except JWTError:
-        # Token is invalid or expired
-        raise
+        raise InvalidTokenException()
 
 
 def create_refresh_token(data: dict) -> str:

@@ -8,6 +8,7 @@ from database.database import get_db
 from database.models import Student, Mark, Teacher
 from database.schemas import ResultsResponseSchema, MarkResponseSchema, CSVUploadResponseSchema,MessageSchema
 from auth.dependencies import get_current_user
+from auth.permissions import require_teacher, require_admin, require_student
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi import Request
@@ -20,23 +21,21 @@ router = APIRouter()
 
 
 # ============================================================================
-# GET DEGREES ENDPOINT
+# GET DEGREES ENDPOINT (UPDATED)
 # ============================================================================
 
 @router.get("/degrees")
 async def get_degrees(
-    current_user: Teacher = Depends(get_current_user),
+    current_user: Teacher = Depends(require_teacher),  # ← CHANGED: Use require_teacher!
     db: AsyncSession = Depends(get_db)):
     """
     Get all degrees for current user's college
     
     Returns: [{id, name}, ...]
     """
-    if not isinstance(current_user, Teacher):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only teachers can access this endpoint"
-        )
+    # ← REMOVED: No need to check role here anymore!
+    # if not isinstance(current_user, Teacher):
+    #     raise UnauthorizedAccessException()
     
     try:
         result = await db.execute(
@@ -62,13 +61,13 @@ async def get_degrees(
 
 
 # ============================================================================
-# GET BRANCHES ENDPOINT
+# GET BRANCHES ENDPOINT (UPDATED)
 # ============================================================================
 
 @router.get("/branches")
 async def get_branches(
-    degree_id: str = Query(...),  # REQUIRED parameter
-    current_user: Teacher = Depends(get_current_user),
+    degree_id: str = Query(...),
+    current_user: Teacher = Depends(require_teacher),  # ← CHANGED: Use require_teacher!
     db: AsyncSession = Depends(get_db)):
     """
     Get all branches for a specific degree
@@ -78,12 +77,9 @@ async def get_branches(
     
     Returns: [{id, name}, ...]
     """
-
-    if not isinstance(current_user, Teacher):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only teachers can access this endpoint"
-        )
+    # ← REMOVED: No need to check role here anymore!
+    # if not isinstance(current_user, Teacher):
+    #     raise UnauthorizedAccessException()
     
     try:
         from uuid import UUID as PyUUID
@@ -122,7 +118,6 @@ async def get_branches(
             detail="Failed to fetch branches"
         )
 
-
 # ============================================================================
 # GET STUDENT'S RESULTS
 # ============================================================================
@@ -132,7 +127,7 @@ async def get_my_results(
     semester: int = Query(None), 
     limit: int = Query(20, ge=1, le=100), 
     offset: int = Query(0, ge=0), 
-    current_user = Depends(get_current_user), 
+    current_user = Depends(require_student), 
     db: AsyncSession = Depends(get_db)):
     """
     Get student's results/marks with SGPA
@@ -152,6 +147,7 @@ async def get_my_results(
         (Mark.roll_no == current_user.roll_no) &
         (Mark.college_id == current_user.college_id)
     )
+    
     
     # Step 2: Optionally filter by semester
     if semester is not None:
@@ -216,7 +212,7 @@ async def get_my_results(
 async def upload_csv(
     request: Request,
     file: UploadFile = File(...),
-    current_user: Teacher = Depends(get_current_user),
+    current_user: Teacher = Depends(require_teacher),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -237,7 +233,7 @@ async def get_statistics(
     year: int = Query(...),
     semester: int = Query(...),
     branch_id: str = Query(None),
-    current_user: Teacher = Depends(get_current_user),
+    current_user: Teacher = Depends(require_teacher),  # ← CHANGED: Use require_teacher!
     db: AsyncSession = Depends(get_db)):
     """
     Get statistics for a specific degree, year, semester, and optional branch
@@ -251,13 +247,16 @@ async def get_statistics(
     Returns: SGPA-based statistics
     """
     
+    # ← REMOVED: No need to check role here anymore!
+    # if not isinstance(current_user, Teacher):
+    #     raise UnauthorizedAccessException()
+    
     # Step 1: Validate parameters
     if not degree_id or not year or not semester:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="degree_id, year, and semester are required"
         )
-    
     # Step 2: Validate UUID format
     try:
         from uuid import UUID as PyUUID
@@ -281,35 +280,31 @@ async def get_statistics(
     
     if branch_uuid:
         query = query.where(SemesterGPA.branch_id == branch_uuid)
+
+
     
     result = await db.execute(query)
     semester_gpas = result.scalars().all()
     
     # Step 4: Handle no results
-    branch_text = f", {branch_id}" if branch_uuid else " (all branches)"
+    branch_text = f", branch={branch_id}" if branch_id else " (all branches)"
     
     if not semester_gpas:
-        return {
-            "degree_id": degree_id,
-            "year": year,
-            "semester": semester,
-            "branch_id": branch_id,
-            "total_students": 0,
-            "pass_percentage": 0,
-            "highest_sgpa": 0,
-            "average_sgpa": 0,
-            "lowest_sgpa": 0,
-            "top_10_students": [],
-            "sgpa_distribution": {},
-            "subject_wise_failures": {},
-            "message": f"No records found for Degree {degree_id}, Year {year}, Semester {semester}{branch_text}"
-        }
-    
+        raise HTTPException(
+            status_code=404,
+            detail="No records found for selected degree/year/semester/branch"
+        )
     # Step 5: Calculate statistics
     total_students = len(semester_gpas)
+
+    if total_students == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="No students found"
+        )
     
     # Pass percentage (pass + pass_with_backlog)
-    passed = len([s for s in semester_gpas if s.status != "fail"])
+    passed = sum(1 for s in semester_gpas if s.status in ("pass", "pass_with_backlog"))
     pass_percentage = (passed / total_students * 100) if total_students > 0 else 0
     
     # SGPA stats

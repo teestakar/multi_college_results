@@ -61,35 +61,26 @@ async function fetchResults() {
         const response = await apiCall(query);
 
         console.log("Response object:", response);
-
-        if (response) {
-            console.log("Status:", response.status);
-
-            const clone = response.clone();
-            console.log("Body:", await clone.json());
-        }
+        console.log("Status:", response?.status);
         
-        if (!response) {
+        const data = response;
+
+        if (!data) {
             showMessage('Session expired. Please login again.', 'error');
-            setTimeout(() => {
-                logout();
-            }, 2000);
+            setTimeout(() => logout(), 2000);
             return;
         }
-        
-        if (!response.ok) {
-            if (response.status === 401) {
-                logout();
-                return;
-            }
-            const error = await response.json();
-            showMessage(`Error: ${error.detail}`, 'error');
+
+        // backend-style error handling
+        if (data?.status === "error") {
+            showMessage(`Error: ${data.message || "Request failed"}`, 'error');
             return;
         }
         
         messageDiv.style.display = 'none';
         
-        const data = await response.json();
+       // const data = response;
+
         allResults = data.results || [];
         sgpaData = data.sgpa || null;
         

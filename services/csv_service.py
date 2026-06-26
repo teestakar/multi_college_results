@@ -2,9 +2,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from database.models import Student, Mark, SemesterGPA
-from database.models import Teacher
-from uuid import UUID
+from database.models import Student, Mark, SemesterGPA, Teacher
+from auth.exceptions import CSVParseError, CSVHeaderMismatchError, CSVProcessingError  # ← ADD THIS
 
 class CSVService:
     
@@ -15,17 +14,15 @@ class CSVService:
         Returns: dict with status, counts, errors
         """
         
-        # Step 1: Parse CSV
-        parsed_data = await CSVService._parse_csv(file)
-        if parsed_data["error"]:
-            return parsed_data
-        
-        student_marks = parsed_data["student_marks"]
-        errors = parsed_data["errors"]
-        skipped_rows = parsed_data["skipped_rows"]
-        
-        # Step 2: Process with transaction
         try:
+            # Step 1: Parse CSV
+            parsed_data = await CSVService._parse_csv(file)
+            
+            student_marks = parsed_data["student_marks"]
+            errors = parsed_data["errors"]
+            skipped_rows = parsed_data["skipped_rows"]
+            
+            # Step 2: Process with transaction
             result = await CSVService._process_student_marks(
                 student_marks, current_user, db
             )
@@ -44,34 +41,31 @@ class CSVService:
                 "errors": errors[:20]
             }
         
+        except CSVParseError:
+            # ← Re-raise CSV parsing errors
+            raise
+        except CSVHeaderMismatchError:
+            # ← Re-raise CSV header errors
+            raise
         except Exception as e:
             await db.rollback()
-            return {
-                "status": "error",
-                "message": f"CSV processing failed: {str(e)}",
-                "errors": [str(e)]
-            }
+            # ← CHANGED: Raise CSVProcessingError instead of returning error dict
+            raise CSVProcessingError(details=str(e))
     
     @staticmethod
     async def _parse_csv(file):
-        """Parse and validate CSV file"""
+        """Parse and validate CSV file - raises exceptions"""
         
+        # ← CHANGED: Raise exception instead of returning error dict
         if not file.filename.endswith(".csv"):
-            return {
-                "error": True,
-                "status": "error",
-                "message": "Only CSV files allowed"
-            }
+            raise CSVParseError(details="Only .csv files allowed")
         
         contents = await file.read()
         csv_data = contents.decode("utf-8").strip().split("\n")
         
+        # ← CHANGED: Raise exception instead of returning error dict
         if len(csv_data) < 2:
-            return {
-                "error": True,
-                "status": "error",
-                "message": "Empty CSV file"
-            }
+            raise CSVParseError(details="File is empty")
         
         # Validate header
         header = csv_data[0].replace("\ufeff", "").strip().split(",")
@@ -85,12 +79,9 @@ class CSVService:
         missing = set(expected_headers) - set(header)
         extra = set(header) - set(expected_headers)
         
+        # ← CHANGED: Raise exception instead of returning error dict
         if missing or extra:
-            return {
-                "error": True,
-                "status": "error",
-                "message": f"CSV header mismatch. Missing={missing}, Extra={extra}"
-            }
+            raise CSVHeaderMismatchError(missing=missing, extra=extra)
         
         # Parse rows
         student_marks = {}
@@ -127,6 +118,7 @@ class CSVService:
                 "credit_points": CSVService._safe_float(parts[7]),
             })
         
+        # ← CHANGED: Return success dict, not error dict
         return {
             "error": False,
             "student_marks": student_marks,

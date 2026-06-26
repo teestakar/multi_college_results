@@ -30,7 +30,7 @@ studentRegisterForm.addEventListener('submit', handleRegister);
 
 async function handleRegister(event) {
     event.preventDefault();
-    
+
     const rollNo = rollNoInput.value.trim();
     const name = nameInput.value.trim();
     const email = emailInput.value.trim();
@@ -38,62 +38,45 @@ async function handleRegister(event) {
     const degree = degreeInput.value.trim();
     const branch = branchInput.value.trim();
     const year = parseInt(yearSelect.value);
-    
-    // Validate
+
     if (!rollNo || !name || !email || !password || !degree || !branch || !year) {
         showMessage('❌ Please fill all fields', 'error');
         return;
     }
-    
+
     loadingDiv.style.display = 'block';
     submitBtn.disabled = true;
-    
+
     try {
-        console.log('Student register attempt:', { rollNo, name, email, degree, branch, year });
-        
-        const response = await apiCall('/api/auth/register', {
+        const data = await apiCall('/api/auth/register', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
                 roll_no: rollNo,
-                name: name,
-                email: email,
-                password: password,
-                degree: degree,
-                branch: branch,
-                year: year
+                name,
+                email,
+                password,
+                degree,
+                branch,
+                year
             })
         });
-        
-        if (!response || !response.ok) {
-            const error = await response.json();
-            showMessage(`❌ ${error.detail || 'Registration failed'}`, 'error');
-            loadingDiv.style.display = 'none';
-            submitBtn.disabled = false;
-            return;
+
+        // backend error safety
+        if (data?.status === "error") {
+            throw new Error(data.message || "Registration failed");
         }
-        
-        const data = await response.json();
-        console.log('Registration response:', data);
-        
-        showMessage(`✅ ${data.message}`, 'success');
 
-        loadingDiv.style.display = 'none';
-        submitBtn.disabled = false;
-        
-        // Clear form
+        showMessage(`✅ ${data.message || "Student registered successfully"}`, 'success');
+
         studentRegisterForm.reset();
-        
-        
-
-        // Auto-focus first input
         rollNoInput.focus();
-        
+
     } catch (error) {
-        console.error('Registration error:', error);
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        console.error(error);
+        showMessage(`❌ ${error.message}`, 'error');
+
+    } finally {
+        // 🔥 ALWAYS RESET UI
         loadingDiv.style.display = 'none';
         submitBtn.disabled = false;
     }

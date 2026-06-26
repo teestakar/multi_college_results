@@ -27,64 +27,47 @@ teacherRegisterForm.addEventListener('submit', handleRegister);
 
 async function handleRegister(event) {
     event.preventDefault();
-    
+
     const teacherId = teacherIdInput.value.trim();
     const name = nameInput.value.trim();
     const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
-    
-    // Validate
+
     if (!teacherId || !name || !email || !password) {
         showMessage('❌ Please fill all fields', 'error');
         return;
     }
-    
+
     loadingDiv.style.display = 'block';
     submitBtn.disabled = true;
-    
+
     try {
-        console.log('Teacher register attempt:', { teacherId, name, email });
-        
-        const response = await apiCall('/api/auth/teacher/register', {
+        const data = await apiCall('/api/auth/teacher/register', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
                 teacher_id: teacherId,
-                name: name,
-                email: email,
-                password: password
+                name,
+                email,
+                password
             })
         });
-        
-        if (!response || !response.ok) {
-            const error = await response.json();
-            showMessage(`❌ ${error.detail || 'Registration failed'}`, 'error');
-            loadingDiv.style.display = 'none';
-            submitBtn.disabled = false;
-            return;
+
+        // backend error safety
+        if (data?.status === "error") {
+            throw new Error(data.message || "Registration failed");
         }
-        
-        const data = await response.json();
-        console.log('Registration response:', data);
-        
-        showMessage(`✅ ${data.message}`, 'success');
 
-        loadingDiv.style.display = 'none';
-        submitBtn.disabled = false;
-        
-        // Clear form
+        showMessage(`✅ ${data.message || "Teacher registered successfully"}`, 'success');
+
         teacherRegisterForm.reset();
-        
-    
-
-        // Auto-focus first input
         teacherIdInput.focus();
-        
+
     } catch (error) {
-        console.error('Registration error:', error);
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        console.error(error);
+        showMessage(`❌ ${error.message}`, 'error');
+
+    } finally {
+        // 🔥 ALWAYS RESET UI STATE
         loadingDiv.style.display = 'none';
         submitBtn.disabled = false;
     }

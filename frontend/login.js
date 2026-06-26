@@ -55,7 +55,7 @@ async function loadColleges() {
         
     } catch (error) {
         console.error('Error loading colleges:', error);
-        showMessage('message', '⚠️ Could not load colleges. Please refresh.', 'error');
+        showMessage('⚠️ Could not load colleges. Please refresh.', 'error');
     }
 }
 
@@ -70,7 +70,7 @@ async function handleLogin(event) {
     const password = passwordInput.value;
     
     if (!collegeCode || !rollNo || !password) {
-        showMessage('message', '❌ Please fill all fields', 'error');
+        showMessage('❌ Please fill all fields', 'error');
         return;
     }
     
@@ -100,17 +100,21 @@ async function handleLogin(event) {
             localStorage.setItem('college_code', collegeCode);
             localStorage.setItem('user_type', 'student');
             
-            showMessage('message', '✅ Login successful! Redirecting...', 'success');
+            showMessage('✅ Login successful! Redirecting...', 'success');
             
             setTimeout(() => {
                 window.location.href = 'student-dashboard.html';
             }, 1500);
         } else {
-            const errorMsg = data.detail || 'Login failed';
-            showMessage('message', `❌ ${errorMsg}`, 'error');
+            const errorMsg =
+                data.detail?.message ||
+                data.detail ||
+                'Login failed';
+
+            showMessage(`❌ ${errorMsg}`, 'error');
         }
     } catch (error) {
-        showMessage('message', `❌ Error: ${error.message}`, 'error');
+        showMessage(`❌ Error: ${error.message}`, 'error');
         console.error('Login error:', error);
     } finally {
         loadingDiv.style.display = 'none';

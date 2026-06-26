@@ -37,15 +37,10 @@ async function loadTeacherProfile() {
     try {
         console.log('Loading teacher profile...');
         
-        const response = await apiCall('/api/auth/teacher/me');
+        const data = await apiCall('/api/auth/teacher/me');
 
-        if (!response || !response.ok) {
-            console.error('Failed to load teacher profile, logging out');
-            logout();
-            return;
-        }
+        console.log('Teacher profile data:', data);
 
-        const data = await response.json();
         console.log('Teacher profile data:', data);
 
         // Update UI with profile data

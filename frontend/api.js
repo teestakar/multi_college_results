@@ -3,91 +3,118 @@ const API_BASE_URL = 'http://localhost:8000';
 
 // ==================== API CALL WITH AUTO TOKEN REFRESH ====================
 async function apiCall(endpoint, options = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
-    
-    // Setup headers
-    if (!options.headers) {
-        options.headers = {};
-    }
-    
-    // Add auth header if token exists
-    const accessToken = localStorage.getItem('access_token');
-    if (accessToken) {
-        options.headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    
-    // Make request
-    let response = await fetch(url, options);
-    
-    // If 401 (token expired), try to refresh
-    if (response.status === 401) {
-        console.log('Token expired, attempting refresh...');
-        const refreshed = await refreshAccessToken();
-        if (refreshed) {
-            // Retry with new token
-            const newAccessToken = localStorage.getItem('access_token');
-            options.headers['Authorization'] = `Bearer ${newAccessToken}`;
-            response = await fetch(url, options);
-        } else {
-            // Refresh failed, go to login
-            console.log('Refresh failed, redirecting to login');
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            window.location.href = 'index.html';
-            return null;
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+
+        // ==================== UPDATED ERROR HANDLING ====================
+        if (!response.ok) {
+            const error = await response.json();
+            
+            // Extract the actual error message
+            let errorMessage = "An error occurred";
+            
+            if (error.detail) {
+                if (typeof error.detail === 'object') {
+                    // New format: {status, code, message, details}
+                    errorMessage = error.detail.message || error.detail.code || "Unknown error";
+                } else if (typeof error.detail === 'string') {
+                    // Old format: just a string
+                    errorMessage = error.detail;
+                }
+            }
+            
+            // Handle 401 - Token expired or invalid
+            if (response.status === 401) {
+                const code = error.detail?.code;
+                
+                if (code === 'TOKEN_EXPIRED') {
+                    // Try to refresh token
+                    const refreshed = await refreshAccessToken();
+                    if (refreshed) {
+                        // Retry the original request
+                        return apiCall(endpoint, options);
+                    }
+                }
+                
+                // Token invalid or refresh failed
+                localStorage.clear();
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            // Show error message
+            showMessage(errorMessage, 'error');
+            throw new Error(errorMessage);
         }
+
+        const data = await response.json();
+        return data;
+
+    } catch (error) {
+        console.error('API Error:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+        throw error;
     }
-    
-    return response;
 }
 
-// ==================== REFRESH ACCESS TOKEN ====================
+// ==================== HELPER FUNCTION ====================
+
 async function refreshAccessToken() {
-    const refreshToken = localStorage.getItem('refresh_token');
-    
-    if (!refreshToken) {
-        return false;  // No refresh token, go to login
-    }
-    
+    //"""Refresh the access token using refresh token"""
     try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                refresh_token: refreshToken
-            })
-        });
+        const refreshToken = localStorage.getItem('refresh_token');
         
-        if (response.ok) {
-            const data = await response.json();
-            localStorage.setItem('access_token', data.access_token);
-            console.log('Token refreshed successfully');
-            return true;
-        } else {
-            console.log('Refresh failed');
+        if (!refreshToken) {
             return false;
         }
+        
+        const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken })
+        });
+        
+        if (!response.ok) {
+            return false;
+        }
+        
+        const data = await response.json();
+        localStorage.setItem('access_token', data.access_token);
+        return true;
+        
     } catch (error) {
-        console.error('Token refresh error:', error);
+        console.error('Token refresh failed:', error);
         return false;
     }
 }
 
 // ==================== HELPER: SHOW MESSAGE ====================
-function showMessage(elementId, text, type) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
+function showMessage(text, type) {
+    const messageDiv = document.getElementById('message');
     
-    element.textContent = text;
-    element.className = `message ${type}`;
-    element.style.display = 'block';
+    if (!messageDiv) return;
     
-    // Auto-hide error messages after 5 seconds
-    if (type === 'error') {
+    // Convert object to string if needed
+    let displayText = text;
+    if (typeof text === 'object') {
+        displayText = text.message || JSON.stringify(text);
+    }
+    
+    messageDiv.textContent = displayText;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+    
+    // Auto-hide success messages
+    if (type === 'success') {
         setTimeout(() => {
-            element.style.display = 'none';
+            messageDiv.style.display = 'none';
         }, 5000);
     }
 }

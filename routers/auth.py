@@ -23,7 +23,14 @@ from auth.auth import (
     decode_token
 )
 from auth.dependencies import get_current_user
-from auth.exceptions import InvalidTokenException
+from auth.permissions import require_admin
+from auth.exceptions import (
+    InvalidCredentialsException,
+    ResourceNotFoundException,
+    ResourceAlreadyExistsException,
+    InvalidTokenException,
+    InvalidTeacherCredentialsException
+)
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi import Request
@@ -33,8 +40,10 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 # ============================================================================
-# 0. COLLEGE + ADMIN REGISTRATION (Anyone can do this)
+# 0. COLLEGE + ADMIN REGISTRATION (Anyone can do this) (UPDATED)
 # ============================================================================
+
+from auth.exceptions import ResourceAlreadyExistsException  # ← ADD THIS
 
 @router.post("/college-register")
 @limiter.limit("3/hour")
@@ -64,11 +73,9 @@ async def register_college_and_admin(
     college_result = await db.execute(college_query)
     existing_college = college_result.scalars().first()
     
+    # ← CHANGED: Use custom exception instead of HTTPException
     if existing_college:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"College code '{register_data.college_code}' already exists"
-        )
+        raise ResourceAlreadyExistsException(f"College code '{register_data.college_code}'")
     
     # Step 2: Create College
     new_college = College(
@@ -108,6 +115,7 @@ async def register_college_and_admin(
         admin_id=admin_teacher_id
     )
 
+
 @router.get("/colleges")
 async def get_colleges(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -127,8 +135,10 @@ async def get_colleges(db: AsyncSession = Depends(get_db)):
 
 
 # ============================================================================
-# 1. LOGIN ENDPOINT
+# 1. LOGIN ENDPOINT (UPDATED)
 # ============================================================================
+
+from auth.exceptions import InvalidCredentialsException, ResourceNotFoundException  # ← ADD THESE
 
 @router.post("/login")
 @limiter.limit("5/minute")
@@ -147,11 +157,9 @@ async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSessi
     college_result = await db.execute(college_query)
     college = college_result.scalars().first()
     
+    # ← CHANGED: Use custom exception instead of HTTPException
     if not college:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"College code '{login_data.college_code}' not found"
-        )
+        raise ResourceNotFoundException("College")
     
     # Step 2: Find student by college_id + roll_no
     student_query = select(Student).where(
@@ -161,18 +169,14 @@ async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSessi
     student_result = await db.execute(student_query)
     student = student_result.scalars().first()
     
+    # ← CHANGED: Use custom exception instead of HTTPException
     if not student:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid roll_no"
-        )
+        raise InvalidCredentialsException()
     
     # Step 3: Verify password
     if not verify_password(login_data.password, student.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid password"
-        )
+        # ← CHANGED: Use custom exception instead of HTTPException
+        raise InvalidCredentialsException()
     
     # Step 4: Create tokens
     payload = {
@@ -191,7 +195,6 @@ async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSessi
         token_type="bearer",
         user_name=student.name
     )
-
 
 # ============================================================================
 # 2. REFRESH ENDPOINT
@@ -259,7 +262,7 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
 
 
 # ============================================================================
-# STUDENT REGISTRATION ENDPOINT (Admin only)
+# STUDENT REGISTRATION ENDPOINT (Admin only) (UPDATED)
 # ============================================================================
 
 @router.post("/register")
@@ -267,30 +270,18 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
 async def register_student(
     request: Request,
     register_data: StudentRegisterSchema, 
-    current_user: Teacher = Depends(get_current_user), 
+    current_user: Teacher = Depends(require_admin),  # ← CHANGED: Use require_admin!
     db: AsyncSession = Depends(get_db)) -> MessageSchema:
     """
     Register new student (admin only)
     
     Input: {roll_no, name, email, password, degree, branch, year}
     Output: {message, status}
-    
-    Flow:
-    1. Check: current_user is admin?
-    2. Check: student already exists?
-    3. Auto-create or fetch degree
-    4. Auto-create or fetch branch
-    5. Hash password
-    6. Create student with degree + branch
-    7. Return success
     """
     
-    # Step 1: Only admin can register students
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can register students"
-        )
+    # ← REMOVED: No need to check role here anymore!
+    # if current_user.role != "admin":
+    #     raise AdminOnlyException()
     
     # Step 2: Student already exists in this college?
     query = select(Student).where(
@@ -301,10 +292,7 @@ async def register_student(
     existing = result.scalars().first()
     
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Student with roll_no '{register_data.roll_no}' already exists in this college"
-        )
+        raise ResourceAlreadyExistsException(f"Student {register_data.roll_no}")
     
     # Step 3: Auto-create or fetch DEGREE
     degree_query = select(Degree).where(
@@ -315,13 +303,12 @@ async def register_student(
     degree_obj = degree_result.scalars().first()
     
     if not degree_obj:
-        # Create new degree
         degree_obj = Degree(
             college_id=current_user.college_id,
             name=register_data.degree
         )
         db.add(degree_obj)
-        await db.flush()  # Get the ID without committing
+        await db.flush()
         print(f"DEBUG: Created new degree: {register_data.degree}")
     else:
         print(f"DEBUG: Using existing degree: {register_data.degree}")
@@ -336,14 +323,13 @@ async def register_student(
     branch_obj = branch_result.scalars().first()
     
     if not branch_obj:
-        # Create new branch
         branch_obj = Branch(
             degree_id=degree_obj.id,
             college_id=current_user.college_id,
             name=register_data.branch
         )
         db.add(branch_obj)
-        await db.flush()  # Get the ID without committing
+        await db.flush()
         print(f"DEBUG: Created new branch: {register_data.branch} for degree {register_data.degree}")
     else:
         print(f"DEBUG: Using existing branch: {register_data.branch}")
@@ -357,8 +343,8 @@ async def register_student(
         name=register_data.name,
         email=register_data.email,
         password_hash=hashed_pwd,
-        degree_id=degree_obj.id,  # ← Link to degree
-        branch_id=branch_obj.id,   # ← Link to branch
+        degree_id=degree_obj.id,
+        branch_id=branch_obj.id,
         year=register_data.year,
         college_id=current_user.college_id
     )
@@ -373,10 +359,8 @@ async def register_student(
         status="success"
     )
 
-
-
 # ============================================================================
-# TEACHER LOGIN ENDPOINT
+# TEACHER LOGIN ENDPOINT (UPDATED)
 # ============================================================================
 
 @router.post("/teacher/login")
@@ -387,12 +371,6 @@ async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: As
     
     Input: {teacher_id, password}
     Output: {access_token, refresh_token, token_type, user_name}
-    
-    Flow:
-    1. Find teacher by teacher_id
-    2. Verify password
-    3. Create tokens
-    4. Return tokens
     """
     
     # Step 1: Find teacher by teacher_id
@@ -402,25 +380,20 @@ async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: As
     teacher_result = await db.execute(teacher_query)
     teacher = teacher_result.scalars().first()
     
+    # ← CHANGED: Use custom exception instead of HTTPException
     if not teacher:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid teacher_id"
-        )
+        raise InvalidTeacherCredentialsException()
     
     # Step 2: Verify password
     if not verify_password(login_data.password, teacher.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid password"
-        )
+        # ← CHANGED: Use custom exception instead of HTTPException
+        raise InvalidTeacherCredentialsException()
     
     # Step 3: Create tokens
     payload = {
         "user_id": str(teacher.teacher_id),
         "user_type": "teacher",
-        "college_id": str(teacher.college_id),
-        "role":str(teacher.role)
+        "college_id": str(teacher.college_id)
     }
     access_token = create_access_token(payload)
     refresh_token = create_refresh_token(payload)
@@ -432,7 +405,6 @@ async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: As
         token_type="bearer",
         user_name=teacher.name
     )
-
 
 # ============================================================================
 # TEACHER role endpoint
@@ -464,7 +436,7 @@ async def get_teacher_profile(
 
 
 # ============================================================================
-# TEACHER REGISTRATION ENDPOINT (Admin only)
+# TEACHER REGISTRATION ENDPOINT (Admin only) (UPDATED)
 # ============================================================================
 
 @router.post("/teacher/register")
@@ -472,7 +444,7 @@ async def get_teacher_profile(
 async def register_teacher(
     request: Request, 
     register_data: TeacherRegisterSchema, 
-    current_user: Teacher = Depends(get_current_user), 
+    current_user: Teacher = Depends(require_admin),  # ← CHANGED: Use require_admin!
     db: AsyncSession = Depends(get_db)) -> MessageSchema:
     
     """
@@ -480,21 +452,11 @@ async def register_teacher(
     
     Input: {teacher_id, password, name, email}
     Output: {message, status}
-    
-    Flow:
-    1. Check: current_user is admin?
-    2. Check: teacher_id already exists?
-    3. Hash password
-    4. Create teacher in same college as admin
-    5. Return success
     """
     
-    # Step 1: Only admin can register teachers
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can register teachers"
-        )
+    # ← REMOVED: No need to check role here anymore!
+    # if current_user.role != "admin":
+    #     raise AdminOnlyException()
     
     # Step 2: Teacher already exists?
     query = select(Teacher).where(
@@ -504,10 +466,7 @@ async def register_teacher(
     existing = result.scalars().first()
     
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Teacher ID '{register_data.teacher_id}' already exists"
-        )
+        raise ResourceAlreadyExistsException(f"Teacher {register_data.teacher_id}")
     
     # Step 3: Hash password
     hashed_pwd = hash_password(register_data.password)
@@ -518,8 +477,8 @@ async def register_teacher(
         name=register_data.name,
         email=register_data.email,
         password_hash=hashed_pwd,
-        college_id=current_user.college_id,  # ← Auto-use admin's college
-        role="teacher"  # ← Set role as teacher
+        college_id=current_user.college_id,
+        role="teacher"
     )
     
     db.add(new_teacher)

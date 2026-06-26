@@ -32,68 +32,89 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadDegrees() {
     try {
         console.log('Loading degrees...');
-        
+
+        degreeSelect.innerHTML = '<option value="">Loading degrees...</option>';
+
         const response = await apiCall('/api/results/degrees');
-        
-        if (!response || !response.ok) {
-            showMessage('❌ Failed to load degrees', 'error');
+
+        console.log("Degrees raw response:", response);
+
+        if (!response) {
+            throw new Error("No response from server");
+        }
+
+        if (response.status === "error" || response.detail) {
+            throw new Error(response.message || response.detail || "Failed to load degrees");
+        }
+
+        const degrees = Array.isArray(response)
+            ? response
+            : response.data || response.results;
+
+        if (!degrees || degrees.length === 0) {
+            degreeSelect.innerHTML = '<option value="">No degrees found</option>';
             return;
         }
-        
-        degreesList = await response.json();
-        console.log('Degrees loaded:', degreesList);
-        
-        // Populate degree dropdown
+
+        degreesList = degrees;
+
         degreeSelect.innerHTML = '<option value="">Select Degree</option>';
+
         degreesList.forEach(degree => {
             const option = document.createElement('option');
             option.value = degree.id;
             option.textContent = degree.name;
             degreeSelect.appendChild(option);
         });
-        
+
     } catch (error) {
         console.error('Error loading degrees:', error);
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        degreeSelect.innerHTML = '<option value="">Failed to load degrees</option>';
+        showMessage(`❌ ${error.message}`, 'error');
     }
 }
 
 // ==================== ON DEGREE CHANGE ====================
 async function onDegreeChange() {
     const degreeId = degreeSelect.value;
-    
+
     if (!degreeId) {
         branchSelect.innerHTML = '<option value="">Select degree first</option>';
         return;
     }
-    
+
     try {
         console.log('Loading branches for degree:', degreeId);
-        
+
         const response = await apiCall(`/api/results/branches?degree_id=${degreeId}`);
-        
-        if (!response || !response.ok) {
-            showMessage('❌ Failed to load branches', 'error');
-            return;
+
+        console.log("Branches raw response:", response);
+
+        if (!response) {
+            throw new Error("Failed to load branches");
         }
-        
-        const branches = await response.json();
-        console.log('Branches loaded:', branches);
-        
-        // Populate branch dropdown
+
+        if (response.status === "error" || response.detail) {
+            throw new Error(response.message || response.detail || "Failed to load branches");
+        }
+
+        const branches = Array.isArray(response)
+            ? response
+            : response.data || response.results || [];
+
         branchSelect.innerHTML = '<option value="">Select Branch</option>';
         branchSelect.innerHTML += '<option value="all">All Branches</option>';
-        
+
         branches.forEach(branch => {
             const option = document.createElement('option');
             option.value = branch.id;
             option.textContent = branch.name;
             branchSelect.appendChild(option);
         });
-        
+
     } catch (error) {
         console.error('Error loading branches:', error);
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        showMessage(`❌ ${error.message}`, 'error');
     }
 }
 
@@ -123,16 +144,26 @@ async function loadStatistics() {
         }
         
         const response = await apiCall(url);
-        
-        if (!response || !response.ok) {
-            const error = await response.json();
-            showMessage(`❌ ${error.detail || 'Failed to load statistics'}`, 'error');
+
+        console.log("Stats raw response:", response);
+
+        if (!response) {
+            showMessage('❌ Failed to load statistics', 'error');
             loadingDiv.style.display = 'none';
             loadBtn.disabled = false;
             return;
         }
-        
-        const data = await response.json();
+
+        // backend error safety
+        if (response.status === "error" || response.detail) {
+            showMessage(`❌ ${response.message || response.detail || 'Failed to load statistics'}`, 'error');
+            loadingDiv.style.display = 'none';
+            loadBtn.disabled = false;
+            return;
+        }
+
+        // normalize data
+        const data = response.data || response;
         console.log('Statistics data:', data);
         
         displayStatistics(data);

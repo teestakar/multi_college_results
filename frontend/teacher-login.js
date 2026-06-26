@@ -30,7 +30,7 @@ async function handleTeacherLogin(event) {
     const password = passwordInput.value;
     
     if (!teacherId || !password) {
-        showMessage('message', '❌ Please fill all fields', 'error');
+        showMessage('❌ Please fill all fields', 'error');
         return;
     }
     
@@ -63,17 +63,21 @@ async function handleTeacherLogin(event) {
             localStorage.setItem('teacher_id', teacherId);
             localStorage.setItem('user_type', 'teacher');
             
-            showMessage('message', '✅ Login successful! Redirecting...', 'success');
+            showMessage('✅ Login successful! Redirecting...', 'success');
             
             setTimeout(() => {
                 window.location.href = 'teacher-dashboard.html';
             }, 1500);
         } else {
-            const errorMsg = data.detail || 'Login failed';
-            showMessage('message', `❌ ${errorMsg}`, 'error');
+            const errorMsg =
+                data.detail?.message ||
+                data.detail ||
+                'Login failed';
+
+            showMessage(`❌ ${errorMsg}`, 'error');
         }
     } catch (error) {
-        showMessage('message', `❌ Error: ${error.message}`, 'error');
+        showMessage(`❌ Error: ${error.message}`, 'error');
         console.error('Teacher login error:', error);
     } finally {
         loadingDiv.style.display = 'none';

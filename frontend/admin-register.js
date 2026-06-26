@@ -41,12 +41,12 @@ async function handleRegister(event) {
     
     // Validation
     if (!collegeName || !collegeCode || !adminName || !adminEmail || !adminPassword) {
-        showMessage('message', '❌ Please fill all fields', 'error');
+        showMessage('❌ Please fill all fields', 'error');
         return;
     }
     
     if (adminPassword.length < 6) {
-        showMessage('message', '❌ Password must be at least 6 characters', 'error');
+        showMessage('❌ Password must be at least 6 characters', 'error');
         return;
     }
     
@@ -76,17 +76,17 @@ async function handleRegister(event) {
         console.log('Registration response:', data);
         
         if (response.ok) {
-            showMessage('message', '✅ College registered successfully! Redirecting to login...', 'success');
+            showMessage('✅ College registered successfully! Redirecting to login...', 'success');
             
             setTimeout(() => {
                 window.location.href = 'index.html';
             }, 2000);
         } else {
             const errorMsg = data.detail || 'Registration failed';
-            showMessage('message', `❌ ${errorMsg}`, 'error');
+            showMessage(`❌ ${errorMsg}`, 'error');
         }
     } catch (error) {
-        showMessage('message', `❌ Error: ${error.message}`, 'error');
+        showMessage(`❌ Error: ${error.message}`, 'error');
         console.error('Registration error:', error);
     } finally {
         loadingDiv.style.display = 'none';

@@ -7,7 +7,25 @@ class InvalidCredentialsException(HTTPException):
     def __init__(self):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid roll_no or password"
+            detail={
+                "status": "error",
+                "code": "INVALID_CREDENTIALS",
+                "message": "Invalid roll_no or password",
+                "details": None
+            }
+        )
+
+
+class InvalidTeacherCredentialsException(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "status": "error",
+                "code": "INVALID_CREDENTIALS",
+                "message": "Invalid teacher ID or password",
+                "details": None
+            }
         )
 
 
@@ -16,7 +34,12 @@ class TokenExpiredException(HTTPException):
     def __init__(self):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired. Please login again."
+            detail={
+                "status": "error",
+                "code": "TOKEN_EXPIRED",
+                "message": "Token has expired. Please login again.",
+                "details": None
+            }
         )
 
 
@@ -25,7 +48,12 @@ class InvalidTokenException(HTTPException):
     def __init__(self):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            detail={
+                "status": "error",
+                "code": "INVALID_TOKEN",
+                "message": "Invalid token",
+                "details": None
+            }
         )
 
 
@@ -36,7 +64,12 @@ class UnauthorizedAccessException(HTTPException):
     def __init__(self):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            detail={
+                "status": "error",
+                "code": "NOT_AUTHENTICATED",
+                "message": "Not authenticated",
+                "details": None
+            }
         )
 
 
@@ -45,7 +78,26 @@ class ForbiddenAccessException(HTTPException):
     def __init__(self, message: str = "Access denied"):
         super().__init__(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=message
+            detail={
+                "status": "error",
+                "code": "ACCESS_DENIED",
+                "message": message,
+                "details": None
+            }
+        )
+
+
+class AdminOnlyException(HTTPException):
+    """Only admins can perform this action"""
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "status": "error",
+                "code": "ADMIN_ONLY",
+                "message": "Only admins can perform this action",
+                "details": None
+            }
         )
 
 
@@ -54,7 +106,12 @@ class CollegeAccessViolationException(HTTPException):
     def __init__(self):
         super().__init__(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this college's data"
+            detail={
+                "status": "error",
+                "code": "COLLEGE_ACCESS_VIOLATION",
+                "message": "You don't have access to this college's data",
+                "details": None
+            }
         )
 
 
@@ -65,7 +122,12 @@ class ResourceNotFoundException(HTTPException):
     def __init__(self, resource: str = "Resource"):
         super().__init__(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{resource} not found"
+            detail={
+                "status": "error",
+                "code": "RESOURCE_NOT_FOUND",
+                "message": f"{resource} not found",
+                "details": None
+            }
         )
 
 
@@ -74,7 +136,12 @@ class ResourceAlreadyExistsException(HTTPException):
     def __init__(self, resource: str = "Resource"):
         super().__init__(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"{resource} already exists"
+            detail={
+                "status": "error",
+                "code": "RESOURCE_ALREADY_EXISTS",
+                "message": f"{resource} already exists",
+                "details": None
+            }
         )
 
 
@@ -82,8 +149,79 @@ class ResourceAlreadyExistsException(HTTPException):
 
 class InvalidInputException(HTTPException):
     """User input is invalid (wrong format, out of range)"""
-    def __init__(self, message: str = "Invalid input"):
+    def __init__(self, message: str = "Invalid input", details: str = None):
         super().__init__(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=message
+            detail={
+                "status": "error",
+                "code": "INVALID_INPUT",
+                "message": message,
+                "details": details
+            }
+        )
+
+
+# ==================== CSV ERRORS ====================
+
+class CSVParseError(HTTPException):
+    """Failed to parse CSV file"""
+    def __init__(self, details: str = None):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "code": "CSV_PARSE_ERROR",
+                "message": "Failed to parse CSV file",
+                "details": details
+            }
+        )
+
+
+class CSVHeaderMismatchError(HTTPException):
+    """CSV header format is incorrect"""
+    def __init__(self, missing: set = None, extra: set = None):
+        details = ""
+        if missing:
+            details += f"Missing columns: {', '.join(missing)}. "
+        if extra:
+            details += f"Extra columns: {', '.join(extra)}"
+        
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "status": "error",
+                "code": "CSV_HEADER_MISMATCH",
+                "message": "CSV header format is incorrect",
+                "details": details.strip() if details.strip() else None
+            }
+        )
+
+
+class CSVProcessingError(HTTPException):
+    """Error during CSV processing"""
+    def __init__(self, details: str = None):
+        super().__init__(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": "error",
+                "code": "CSV_PROCESSING_ERROR",
+                "message": "Error processing CSV file",
+                "details": details
+            }
+        )
+
+
+# ==================== SERVER ERRORS ====================
+
+class DatabaseError(HTTPException):
+    """Database operation failed"""
+    def __init__(self, details: str = None):
+        super().__init__(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "status": "error",
+                "code": "DATABASE_ERROR",
+                "message": "Database operation failed",
+                "details": details
+            }
         )

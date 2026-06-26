@@ -7,20 +7,36 @@ from jose import JWTError
 from database.database import get_db
 from database.models import Student, Teacher
 from auth.auth import decode_token
-from auth.exceptions import InvalidTokenException
+from auth.exceptions import (
+    InvalidTokenException,
+    TokenExpiredException,
+    UnauthorizedAccessException,
+    AdminOnlyException
+)
 
 security = HTTPBearer()
 
+
+# ==================== BASE DEPENDENCY ====================
 
 async def get_current_user(
     credentials=Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Get current user from JWT token.
+    
+    Returns: Student or Teacher object
+    
+    Raises:
+    - TokenExpiredException: If token has expired
+    - InvalidTokenException: If token is invalid
+    """
     token = credentials.credentials
 
     try:
         payload = decode_token(token)
-    except JWTError:
+    except Exception as e:
         raise InvalidTokenException()
 
     user_id: str = payload.get("user_id")
@@ -55,3 +71,5 @@ async def get_current_user(
         raise InvalidTokenException()
 
     return user
+
+
