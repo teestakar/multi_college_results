@@ -6,6 +6,7 @@ from database.database import init_db, engine
 from routers.health import router as health_router
 from routers.auth import router as auth_router
 from routers.results import router as results_router
+from routers.admin import router as admin_router
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -71,6 +72,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(results_router, prefix="/api/results", tags=["results"])  # ← ADD THIS
+app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 
 # ==================== ROOT ENDPOINT ====================
 @app.get("/")

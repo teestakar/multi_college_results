@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, ForeignKey, Enum, Text, Index
+from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, ForeignKey, Enum, Text, Index, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -187,6 +187,8 @@ class SemesterGPA(Base):
     backlog_count = Column(Integer, default=0)  # How many subjects < 6.0
     
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    needs_recalculation = Column(Boolean, default=False)  # ← NEW FLAG
     
     # Relationships
     student = relationship("Student", backref="semester_gpas")

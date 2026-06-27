@@ -233,7 +233,7 @@ async def get_statistics(
     year: int = Query(...),
     semester: int = Query(...),
     branch_id: str = Query(None),
-    current_user: Teacher = Depends(require_teacher),  # ← CHANGED: Use require_teacher!
+    current_user: Teacher = Depends(require_admin),  # ← CHANGED: Use require_teacher!
     db: AsyncSession = Depends(get_db)):
     """
     Get statistics for a specific degree, year, semester, and optional branch
@@ -359,3 +359,109 @@ async def get_statistics(
         "subject_wise_failures": subject_wise_failures,
         "message": f"Statistics for Degree {degree_id}, Year {year}, Semester {semester}{branch_text}"
     }
+
+
+
+# ==================== TEACHER STATISTICS (Only their uploads) ====================
+
+@router.get("/statistics/my-uploads")
+@limiter.limit("100/hour")
+async def get_my_uploads_statistics(
+    request: Request,
+    year: int = Query(...),
+    semester: int = Query(...),
+    degree_id: str = Query(...),
+    branch_id: str = Query(None),
+    current_user: Teacher = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get statistics for marks I (teacher) uploaded
+    
+    Based on SemesterGPA (student-level stats), not individual marks
+    """
+    
+    try:
+        from uuid import UUID as PyUUID
+        degree_uuid = PyUUID(degree_id)
+        branch_uuid = PyUUID(branch_id) if branch_id else None
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid degree_id or branch_id format"
+        )
+    
+    try:
+        # Step 1: Find all marks I uploaded in this semester
+        my_marks_result = await db.execute(
+            select(Mark.roll_no).distinct().where(
+                (Mark.college_id == current_user.college_id) &
+                (Mark.semester == semester) &
+                (Mark.uploaded_by == current_user.teacher_id)  # ← MY uploads only
+            )
+        )
+        my_student_rolls = [row[0] for row in my_marks_result.all()]
+        
+        if not my_student_rolls:
+            return {
+                "total_students": 0,
+                "pass_count": 0,
+                "fail_count": 0,
+                "pass_rate": 0,
+                "avg_sgpa": 0,
+                "with_backlog": 0,
+                "message": "No marks found for your uploads"
+            }
+        
+        # Step 2: Get SGPA for students with my marks
+        query = select(SemesterGPA).where(
+            (SemesterGPA.college_id == current_user.college_id) &
+            (SemesterGPA.semester == semester) &
+            (SemesterGPA.roll_no.in_(my_student_rolls))
+        )
+        
+        # Step 3: Optional branch filter
+        if branch_id:
+            query = query.where(SemesterGPA.branch_id == branch_uuid)
+        
+        result = await db.execute(query)
+        sgpas = result.scalars().all()
+        
+        if not sgpas:
+            return {
+                "total_students": 0,
+                "pass_count": 0,
+                "fail_count": 0,
+                "pass_rate": 0,
+                "avg_sgpa": 0,
+                "with_backlog": 0,
+                "message": "No SGPA data found for your uploads"
+            }
+        
+        # Step 4: Calculate statistics based on SemesterGPA
+        total_students = len(sgpas)
+        pass_count = len([s for s in sgpas if s.status == "pass"])
+        fail_count = len([s for s in sgpas if s.status == "fail"])
+        with_backlog = len([s for s in sgpas if s.backlog_count > 0])
+        avg_sgpa = sum(s.sgpa for s in sgpas) / total_students if total_students > 0 else 0
+        
+        # Step 5: Return statistics
+        return {
+            "total_students": total_students,
+            "pass_count": pass_count,
+            "fail_count": fail_count,
+            "pass_rate": round((pass_count / total_students * 100) if total_students > 0 else 0, 2),
+            "avg_sgpa": round(avg_sgpa, 2),
+            "with_backlog": with_backlog,
+            "year": year,
+            "semester": semester,
+            "degree_id": degree_id,
+            "branch_id": branch_id,
+            "message": f"Statistics for marks I uploaded - Semester {semester}, Year {year}"
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch statistics: {str(e)}"
+        )

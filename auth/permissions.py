@@ -5,7 +5,8 @@ from database.models import Student, Teacher
 from auth.dependencies import get_current_user
 from auth.exceptions import (
     UnauthorizedAccessException,
-    AdminOnlyException
+    AdminOnlyException,
+    ForbiddenAccessException
 )
 
 # ==================== PERMISSIONS DEFINITION ====================
@@ -86,8 +87,9 @@ def require_teacher(current_user=Depends(get_current_user)):
     if not isinstance(current_user, Teacher):
         raise UnauthorizedAccessException()
     
-    if current_user.role not in ["teacher", "admin"]:
-        raise UnauthorizedAccessException()
+    if current_user.role != "teacher":
+        # Admin tried to upload - not allowed
+        raise ForbiddenAccessException("Only teachers can upload marks. Admins must approve uploads.")
     
     return current_user
 
