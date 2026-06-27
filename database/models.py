@@ -148,13 +148,17 @@ class UploadBatch(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
     uploaded_by = Column(String(50), ForeignKey("teachers.teacher_id"), nullable=False)
-    semester = Column(Integer)  # Which semester was uploaded
-    year = Column(Integer)  # Which year
+   # semester = Column(Integer)  # Which semester was uploaded
+   # year = Column(Integer)  # Which year
     status = Column(String(50), default="pending")  # "pending", "processing", "completed", "failed"
     file_name = Column(String(255))  # "CSE_Sem2_2024.xlsx"
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)  # If parsing failed, why?
+
+    # NEW COLUMNS
+    csv_content = Column(Text, nullable=True)    # ← ADD
+    marks_count = Column(Integer, default=0)    # ← ADD
     
     # Relationships
     college = relationship("College", back_populates="upload_batches")

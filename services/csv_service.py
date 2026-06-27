@@ -2,7 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from database.models import Student, Mark, SemesterGPA, Teacher
+from database.models import Student, Mark, SemesterGPA, Teacher, UploadBatch
 from auth.exceptions import CSVParseError, CSVHeaderMismatchError, CSVProcessingError  # ← ADD THIS
 
 class CSVService:
@@ -10,8 +10,7 @@ class CSVService:
     @staticmethod
     async def process_upload(file, current_user: Teacher, db: AsyncSession):
         """
-        Main service method - handles entire CSV upload process
-        Returns: dict with status, counts, errors
+        NEW: Store CSV in staging (upload_batches), don't insert to marks yet
         """
         
         try:
@@ -19,39 +18,43 @@ class CSVService:
             parsed_data = await CSVService._parse_csv(file)
             
             student_marks = parsed_data["student_marks"]
+            csv_content = parsed_data["csv_content"]  # ← Get raw CSV content
             errors = parsed_data["errors"]
-            skipped_rows = parsed_data["skipped_rows"]
             
-            # Step 2: Process with transaction
-            result = await CSVService._process_student_marks(
-                student_marks, current_user, db
+            # Step 2: Count total marks
+            total_marks = sum(len(marks) for marks in student_marks.values())
+            
+            # Step 3: Create upload_batches entry (staging)
+            upload_batch = UploadBatch(
+                college_id=current_user.college_id,
+                uploaded_by=current_user.teacher_id,
+                csv_content=csv_content,        # ← Store CSV
+                marks_count=total_marks,        # ← Store count
+                status="pending",               # ← Waiting for approval
+                file_name=file.filename
             )
-            await db.commit()
             
+            db.add(upload_batch)
+            await db.commit()
+            await db.refresh(upload_batch)
+            
+            # Step 4: Return upload_id and status
             return {
-                "status": "success",
-                "message": "CSV processed successfully",
-                "students_processed": result["success"],
-                "students_failed": result["failed"],
-                "marks_inserted": result["inserted_marks"],
-                "marks_updated": result["updated_marks"],
-                "marks_skipped": result["skipped_marks"],
-                "sgpa_inserted": result["inserted_sgpa"],
-                "rows_skipped": skipped_rows,
-                "errors": errors[:20]
+                "status": "pending",
+                "upload_id": str(upload_batch.id),
+                "marks_count": total_marks,
+                "message": f"CSV uploaded successfully. {total_marks} marks waiting for admin approval",
+                "errors": errors[:10]  # Show first 10 errors if any
             }
         
         except CSVParseError:
-            # ← Re-raise CSV parsing errors
             raise
         except CSVHeaderMismatchError:
-            # ← Re-raise CSV header errors
             raise
         except Exception as e:
             await db.rollback()
-            # ← CHANGED: Raise CSVProcessingError instead of returning error dict
             raise CSVProcessingError(details=str(e))
-    
+        
     @staticmethod
     async def _parse_csv(file):
         """Parse and validate CSV file - raises exceptions"""
@@ -61,6 +64,7 @@ class CSVService:
             raise CSVParseError(details="Only .csv files allowed")
         
         contents = await file.read()
+        csv_text = contents.decode("utf-8").strip()  # ← Get raw text
         csv_data = contents.decode("utf-8").strip().split("\n")
         
         # ← CHANGED: Raise exception instead of returning error dict
@@ -122,6 +126,7 @@ class CSVService:
         return {
             "error": False,
             "student_marks": student_marks,
+            "csv_content": csv_text,  # ← ADD THIS
             "errors": errors,
             "skipped_rows": skipped_rows
         }
