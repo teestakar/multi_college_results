@@ -216,6 +216,8 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
     except Exception:
         raise InvalidTokenException()
     
+    if payload.get("type") != "refresh":
+        raise InvalidTokenException()
     # Step 2: Find user in DB (student or teacher)
     user_id = payload.get("user_id")
     college_id = payload.get("college_id")
@@ -392,7 +394,7 @@ async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: As
     # Step 3: Create tokens
     payload = {
         "user_id": str(teacher.teacher_id),
-        "user_type": "teacher",
+        "user_type": teacher.role,
         "college_id": str(teacher.college_id)
     }
     access_token = create_access_token(payload)

@@ -62,7 +62,7 @@ async def rate_limit_handler(request, exc):
 # Allow frontend to make requests from different domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, change to ["https://yourdomain.com"]
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,5 +93,5 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True  # Auto-reload on code change (dev only)
+        reload=True 
     )

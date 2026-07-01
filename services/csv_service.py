@@ -351,7 +351,18 @@ class CSVService:
                     uploaded_by=current_user.teacher_id
                 ))
                 inserted += 1
-                # Do nothing - SGPA will be created when admin clicks Calculate SGPA
+                # ✅ NEW: Check if SGPA exists - if yes, mark for recalculation
+                sgpa_result = await db.execute(
+                    select(SemesterGPA).where(
+                        (SemesterGPA.roll_no == roll_no) &
+                        (SemesterGPA.semester == semester) &
+                        (SemesterGPA.college_id == current_user.college_id)
+                    )
+                )
+                sgpa = sgpa_result.scalars().first()
+                
+                if sgpa:
+                    sgpa.needs_recalculation = True  # ✅ SGPA exists, mark as outdated
             
             elif (
                 existing_mark.subject_name == m["subject_name"] and

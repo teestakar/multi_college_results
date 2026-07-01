@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Multi-College Result Platform</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f5f5f5;
+      }
+
+      .navbar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .navbar h1 {
+        font-size: 24px;
+      }
+
+      .navbar-right {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+      }
+
+      .user-label {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+
+      .logout-btn {
+        background: white;
+        color: #667eea;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .logout-btn:hover {
+        background: #f0f0f0;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+
+      .welcome-section {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #667eea;
+      }
+
+      .welcome-section h2 {
+        color: #333;
+        margin-bottom: 15px;
+        font-size: 28px;
+      }
+
+      .welcome-section p {
+        color: #666;
+        margin: 5px 0;
+        font-size: 16px;
+      }
+
+      .actions-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 25px;
+        margin-top: 40px;
+      }
+
+      .action-card {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        transition: transform 0.3s;
+      }
+
+      .action-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+      }
+
+      .action-card .icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+      }
+
+      .action-card h3 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 20px;
+      }
+
+      .action-card p {
+        color: #666;
+        margin-bottom: 20px;
+        font-size: 14px;
+      }
+
+      .action-card a {
+        display: inline-block;
+        padding: 12px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: 600;
+      }
+
+      .action-card a:hover {
+        opacity: 0.9;
+      }
+
+      @media (max-width: 768px) {
+        .actions-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="navbar">
+      <h1>👨‍💼 Admin Dashboard</h1>
+      <div class="navbar-right">
+        <span class="user-label" id="userLabel">Loading...</span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="welcome-section">
+        <h2>Welcome, <span id="welcomeName">Admin</span>! 👨‍💼</h2>
+        <p><strong>Admin ID:</strong> <span id="adminId">Loading...</span></p>
+        <p>
+          <strong>College Name:</strong>
+          <span id="collegeName">Loading...</span>
+        </p>
+      </div>
+
+      <h3 style="color: #333; margin-bottom: 20px">Admin Operations</h3>
+
+      <div class="actions-grid">
+        <!-- Approve Uploads -->
+        <div class="action-card">
+          <div class="icon">✅</div>
+          <h3>Approve/Reject Uploads</h3>
+          <p>Review and approve pending CSV uploads</p>
+          <a href="admin-uploads.html">Manage Uploads →</a>
+        </div>
+
+        <!-- Calculate SGPA -->
+        <div class="action-card">
+          <div class="icon">📈</div>
+          <h3>Calculate SGPA</h3>
+          <p>Calculate SGPA for all students</p>
+          <a href="admin-calculate-sgpa.html">Calculate →</a>
+        </div>
+
+        <!-- View Statistics -->
+        <div class="action-card">
+          <div class="icon">📊</div>
+          <h3>View Statistics</h3>
+          <p>See college-wide results analysis</p>
+          <a href="statistics.html">View Stats →</a>
+        </div>
+
+        <!-- Register Student -->
+        <div class="action-card">
+          <div class="icon">👨‍🎓</div>
+          <h3>Register Student</h3>
+          <p>Add new student to the system</p>
+          <a href="student-register.html">Register →</a>
+        </div>
+
+        <!-- Register Teacher -->
+        <div class="action-card">
+          <div class="icon">👨‍🏫</div>
+          <h3>Register Teacher</h3>
+          <p>Add a new teacher to your college</p>
+          <a href="teacher-register.html">Register →</a>
+        </div>
+      </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="admin-dashboard.js"></script>
+  </body>
+</html>

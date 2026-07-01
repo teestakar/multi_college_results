@@ -6,6 +6,7 @@ from auth.dependencies import get_current_user
 from auth.exceptions import (
     UnauthorizedAccessException,
     AdminOnlyException,
+    HTTPException,
     ForbiddenAccessException
 )
 
@@ -119,4 +120,13 @@ def require_admin(current_user=Depends(get_current_user)):
     if current_user.role != "admin":
         raise AdminOnlyException()
     
+    return current_user
+
+
+def require_teacher_or_admin(current_user = Depends(get_current_user)):
+    if current_user.role not in ["teacher", "admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only teacher or admin allowed"
+        )
     return current_user

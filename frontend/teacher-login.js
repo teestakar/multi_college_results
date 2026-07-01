@@ -61,13 +61,39 @@ async function handleTeacherLogin(event) {
             localStorage.setItem('refresh_token', data.refresh_token);
             localStorage.setItem('user_name', data.user_name);
             localStorage.setItem('teacher_id', teacherId);
-            localStorage.setItem('user_type', 'teacher');
-            
+            localStorage.setItem('user_type', data.user_type); // "teacher" or "admin"
+
             showMessage('✅ Login successful! Redirecting...', 'success');
-            
-            setTimeout(() => {
-                window.location.href = 'teacher-dashboard.html';
+
+            setTimeout(async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/auth/teacher/me`, {
+                        headers: {
+                            Authorization: `Bearer ${data.access_token}`
+                        }
+                    });
+
+                    if (!res.ok) {
+                        throw new Error("Session expired or unauthorized");
+                    }
+
+                    const profile = await res.json();
+                    console.log("PROFILE:", profile);
+
+                    localStorage.setItem("user_type", profile.role);
+
+                    if (profile.role === "admin") {
+                        window.location.href = "admin-dashboard.html";
+                    } else {
+                        window.location.href = "teacher-dashboard.html";
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    showMessage("❌ Login failed. Try again.", "error");
+                }
             }, 1500);
+
         } else {
             const errorMsg =
                 data.detail?.message ||

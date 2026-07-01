@@ -72,8 +72,12 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRY_MINUTES)
     
-    to_encode.update({"exp": expire})
-    
+    to_encode.update({
+        "exp": expire,
+        "type": "access"
+    })
+    print("JWT_EXPIRY_MINUTES =", settings.JWT_EXPIRY_MINUTES)
+    print("Expire =", expire)
     # Encode with secret
     encoded_jwt = jwt.encode(
         to_encode,
@@ -134,7 +138,10 @@ def create_refresh_token(data: dict) -> str:
     """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=7)
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh"
+    })
     
     encoded_jwt = jwt.encode(
         to_encode,

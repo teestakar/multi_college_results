@@ -46,7 +46,7 @@ async def get_current_user(
     if not user_id or not college_id or not user_type:
         raise InvalidTokenException()
 
-    if user_type == "teacher":
+    if user_type in ["teacher", "admin"]:
         result = await db.execute(
             select(Teacher).where(
                 (Teacher.teacher_id == user_id) &

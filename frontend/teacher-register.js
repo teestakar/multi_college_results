@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const accessToken = localStorage.getItem('access_token');
     const userType = localStorage.getItem('user_type');
     
-    if (!accessToken || userType !== 'teacher') {
+    if (!accessToken || userType !== 'admin') {
         window.location.href = 'teacher-login.html';
         return;
     }

@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRY_MINUTES: int = 1
+    JWT_EXPIRY_MINUTES: int = 15
     ENVIRONMENT: str = "development"
     
     class Config:

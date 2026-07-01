@@ -1,96 +1,78 @@
-// ==================== DOM ELEMENTS ====================
-const studentRegisterForm = document.getElementById('studentRegisterForm');
-const rollNoInput = document.getElementById('rollNo');
-const nameInput = document.getElementById('name');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const degreeInput = document.getElementById('degree');
-const branchInput = document.getElementById('branch');
-const yearSelect = document.getElementById('year');
-const submitBtn = document.getElementById('submitBtn');
-const messageDiv = document.getElementById('message');
-const loadingDiv = document.getElementById('loading');
-
-// ==================== PAGE LOAD ====================
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Student register page loaded');
-    
-    // Check if logged in as admin teacher
-    const accessToken = localStorage.getItem('access_token');
+document.addEventListener('DOMContentLoaded', function () {
+    const token = localStorage.getItem('access_token');
     const userType = localStorage.getItem('user_type');
-    
-    if (!accessToken || userType !== 'teacher') {
+
+    // ================= AUTH GUARD =================
+    if (!token) {
+        window.location.href = 'admin-dashboard.html';
+        return;
+    }
+
+    if (userType !== 'admin') {
         window.location.href = 'teacher-login.html';
         return;
     }
+
+    // ================= INIT FORM =================
+    initializeForm();
 });
 
-// ==================== FORM SUBMIT ====================
-studentRegisterForm.addEventListener('submit', handleRegister);
+// ================= FORM LOGIC =================
+function initializeForm() {
+    const form = document.getElementById('studentRegisterForm');
+    const messageDiv = document.getElementById('message');
+    const submitBtn = document.getElementById('submitBtn');
+    const loadingDiv = document.getElementById('loading');
 
-async function handleRegister(event) {
-    event.preventDefault();
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
 
-    const rollNo = rollNoInput.value.trim();
-    const name = nameInput.value.trim();
-    const email = emailInput.value.trim();
-    const password = passwordInput.value.trim();
-    const degree = degreeInput.value.trim();
-    const branch = branchInput.value.trim();
-    const year = parseInt(yearSelect.value);
+        messageDiv.className = "message";
+        messageDiv.style.display = "none";
 
-    if (!rollNo || !name || !email || !password || !degree || !branch || !year) {
-        showMessage('❌ Please fill all fields', 'error');
-        return;
-    }
+        submitBtn.disabled = true;
+        loadingDiv.style.display = "block";
 
-    loadingDiv.style.display = 'block';
-    submitBtn.disabled = true;
+        const payload = {
+            roll_no: document.getElementById('rollNo').value,
+            name: document.getElementById('name').value,
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            degree: document.getElementById('degree').value,
+            branch: document.getElementById('branch').value,
+            year: document.getElementById('year').value
+        };
 
-    try {
-        const data = await apiCall('/api/auth/register', {
-            method: 'POST',
-            body: JSON.stringify({
-                roll_no: rollNo,
-                name,
-                email,
-                password,
-                degree,
-                branch,
-                year
-            })
-        });
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/register-student`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: JSON.stringify(payload)
+            });
 
-        // backend error safety
-        if (data?.status === "error") {
-            throw new Error(data.message || "Registration failed");
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Registration failed");
+            }
+
+            messageDiv.className = "message success";
+            messageDiv.innerText = "Student registered successfully ✔";
+            messageDiv.style.display = "block";
+
+            form.reset();
+
+        } catch (error) {
+            messageDiv.className = "message error";
+            messageDiv.innerText = error.message;
+            messageDiv.style.display = "block";
+
+        } finally {
+            submitBtn.disabled = false;
+            loadingDiv.style.display = "none";
         }
-
-        showMessage(`✅ ${data.message || "Student registered successfully"}`, 'success');
-
-        studentRegisterForm.reset();
-        rollNoInput.focus();
-
-    } catch (error) {
-        console.error(error);
-        showMessage(`❌ ${error.message}`, 'error');
-
-    } finally {
-        // 🔥 ALWAYS RESET UI
-        loadingDiv.style.display = 'none';
-        submitBtn.disabled = false;
-    }
-}
-
-// ==================== SHOW MESSAGE ====================
-function showMessage(text, type) {
-    messageDiv.textContent = text;
-    messageDiv.className = `message ${type}`;
-    messageDiv.style.display = 'block';
-    
-    if (type === 'success') {
-        setTimeout(() => {
-            messageDiv.style.display = 'none';
-        }, 5000);
-    }
+    });
 }

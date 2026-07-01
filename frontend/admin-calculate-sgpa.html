@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Calculate SGPA</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f5f5f5;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* TOP BAR */
+        .topbar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+
+        .back-btn {
+            text-decoration: none;
+            padding: 10px 15px;
+            background: white;
+            border-radius: 6px;
+            color: #333;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .back-btn:hover {
+            background: #f0f0f0;
+        }
+
+        /* CARD */
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 400px;
+        }
+
+        button {
+            padding: 12px 25px;
+            border: none;
+            background: linear-gradient(135deg,#667eea,#764ba2);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- BACK BUTTON -->
+<div class="topbar">
+    <a href="admin-dashboard.html" class="back-btn">← Back to Dashboard</a>
+</div>
+
+<!-- MAIN CARD -->
+<div class="card">
+    <h2>SGPA Calculator</h2>
+    <p>Click to calculate SGPA for all students</p>
+
+    <button id="calcBtn" onclick="calculateSGPA()">
+        Calculate SGPA
+    </button>
+
+    <div class="status" id="status"></div>
+</div>
+
+<script src="api.js"></script>
+
+<script>
+const btn = document.getElementById('calcBtn');
+const statusDiv = document.getElementById('status');
+
+async function calculateSGPA() {
+    const token = localStorage.getItem('access_token');
+
+    if (!token) {
+        window.location.href = "teacher-login.html";
+        return;
+    }
+
+    btn.disabled = true;
+    statusDiv.innerText = "Processing SGPA calculation...";
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/calculate-sgpa`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || "Failed");
+
+        statusDiv.innerHTML = `
+            <div class="success">
+                SGPA calculated successfully ✔<br><br>
+                New: ${data.calculated}<br>
+                Updated: ${data.updated}
+            </div>
+        `;
+
+    } catch (err) {
+        statusDiv.innerHTML = `<div class="error">${err.message}</div>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+</script>
+
+</body>
+</html>
