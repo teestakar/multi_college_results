@@ -21,15 +21,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadAdminProfile() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/teacher/me`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-        });
+        const data = await apiCall('/api/auth/teacher/me');
         
-        if (!response.ok) throw new Error('Failed to load profile');
-        
-        const data = await response.json();
+        //const data = await response.json();
         adminIdEl.textContent = data.teacher_id || 'N/A';
         collegeNameEl.textContent = data.college_name || 'N/A';
         

@@ -79,49 +79,31 @@ async function handleUpload(event) {
     
     try {
         console.log('Uploading CSV:', file.name);
-        
-        // Create FormData for file upload
+
         const formData = new FormData();
         formData.append('file', file);
-        
-        // Get token for Authorization header
-        const token = localStorage.getItem('access_token');
-        
-        const response = await fetch(`${API_BASE_URL}/api/results/upload-csv`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
+
+        const data = await apiCall("/api/results/upload-csv", {
+            method: "POST",
             body: formData
         });
-        
-        console.log('Upload response status:', response.status);
-        
-        const data = await response.json();
-        console.log('Upload response:', data);
-        
-        if (response.ok) {
-            showMessage(`✅ ${data.message}`, 'success');
-            
-            // Clear form
-            csvUploadForm.reset();
-            fileName.textContent = '';
-            
-            // Show summary
-            if (data.success_count) {
-                showMessage(`✅ ${data.success_count} records uploaded successfully!`, 'info');
-            }
-            if (data.error_count) {
-                showMessage(`⚠️ ${data.error_count} records had errors`, 'error');
-            }
-            
-        } else {
-            const errorMsg = data.detail || data.message || 'Upload failed';
-            showMessage(`❌ ${errorMsg}`, 'error');
+
+        showMessage(`✅ ${data.message}`, 'success');
+
+        csvUploadForm.reset();
+        fileName.textContent = '';
+
+        if (data.success_count) {
+            showMessage(`✅ ${data.success_count} records uploaded successfully!`, 'info');
         }
+
+        if (data.error_count) {
+            showMessage(`⚠️ ${data.error_count} records had errors`, 'error');
+        }
+
     } catch (error) {
         console.error('Upload error:', error);
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        showMessage(`❌ ${error.message}`, 'error');
     } finally {
         loadingDiv.style.display = 'none';
         uploadBtn.disabled = false;

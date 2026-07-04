@@ -211,11 +211,12 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
     """
     
     # Step 1: Validate refresh_token
-    try:
-        payload = decode_token(request_data.refresh_token)
-    except Exception:
-        raise InvalidTokenException()
-    
+    print("Refresh token:", request_data.refresh_token)
+
+    payload = decode_token(request_data.refresh_token)
+
+    print("Payload:", payload)
+        
     if payload.get("type") != "refresh":
         raise InvalidTokenException()
     # Step 2: Find user in DB (student or teacher)
@@ -223,16 +224,21 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
     college_id = payload.get("college_id")
     user_type = payload.get("user_type")
 
+    print(user_id)
+    print(college_id)
+    print(user_type)
+
     if not user_id or not college_id or not user_type:
         raise InvalidTokenException()
 
-    if user_type == "teacher":
+    if user_type in ["teacher", "admin"]:
         result = await db.execute(
             select(Teacher).where(
                 (Teacher.teacher_id == user_id) &
                 (Teacher.college_id == college_id)
             )
         )
+
     elif user_type == "student":
         result = await db.execute(
             select(Student).where(
@@ -240,8 +246,12 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
                 (Student.college_id == college_id)
             )
         )
+
     else:
         raise InvalidTokenException()
+        
+
+    #print("User:", user)
 
     user = result.scalars().first()
     if not user:

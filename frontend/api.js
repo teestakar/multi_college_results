@@ -2,64 +2,72 @@
 const API_BASE_URL = 'http://localhost:8000';
 
 // ==================== API CALL WITH AUTO TOKEN REFRESH ====================
+
 async function apiCall(endpoint, options = {}) {
     try {
+
+        const headers = {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            ...options.headers
+        };
+
+        // Don't set Content-Type for FormData
+        if (!(options.body instanceof FormData)) {
+            headers['Content-Type'] = 'application/json';
+        }
+
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             ...options,
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
+            headers
         });
 
-        // ==================== UPDATED ERROR HANDLING ====================
         if (!response.ok) {
+
             const error = await response.json();
-            
-            // Extract the actual error message
+
             let errorMessage = "An error occurred";
-            
+
             if (error.detail) {
-                if (typeof error.detail === 'object') {
-                    // New format: {status, code, message, details}
-                    errorMessage = error.detail.message || error.detail.code || "Unknown error";
-                } else if (typeof error.detail === 'string') {
-                    // Old format: just a string
+                if (typeof error.detail === "object") {
+                    errorMessage =
+                        error.detail.message ||
+                        error.detail.code ||
+                        "Unknown error";
+                } else {
                     errorMessage = error.detail;
                 }
             }
-            
-            // Handle 401 - Token expired or invalid
+
+            // Token expired
             if (response.status === 401) {
+
                 const code = error.detail?.code;
-                
-                if (code === 'TOKEN_EXPIRED') {
-                    // Try to refresh token
+
+                if (code === "TOKEN_EXPIRED") {
+
                     const refreshed = await refreshAccessToken();
+
                     if (refreshed) {
-                        // Retry the original request
                         return apiCall(endpoint, options);
                     }
                 }
-                
-                // Token invalid or refresh failed
+
                 localStorage.clear();
-                window.location.href = 'index.html';
+                window.location.href = "index.html";
                 return;
             }
-            
-            // Show error message
-            showMessage(errorMessage, 'error');
+
+            showMessage(errorMessage, "error");
             throw new Error(errorMessage);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
 
     } catch (error) {
-        console.error('API Error:', error);
-        showMessage(`Error: ${error.message}`, 'error');
+        console.error("API Error:", error);
+
+        showMessage(`Error: ${error.message}`, "error");
+
         throw error;
     }
 }
@@ -68,6 +76,7 @@ async function apiCall(endpoint, options = {}) {
 
 async function refreshAccessToken() {
     //"""Refresh the access token using refresh token"""
+    console.log("REFRESH CALLED");
     try {
         const refreshToken = localStorage.getItem('refresh_token');
         

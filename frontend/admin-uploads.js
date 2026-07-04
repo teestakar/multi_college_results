@@ -6,15 +6,7 @@ document.addEventListener('DOMContentLoaded', loadUploads);
 
 async function loadUploads() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/uploads/pending`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-        });
-        
-        if (!response.ok) throw new Error('Failed to load uploads');
-        
-        const data = await response.json();
+        const data = await apiCall("/api/admin/uploads/pending");
         console.log('Uploads:', data);
         
         loadingDiv.style.display = 'none';
@@ -71,14 +63,9 @@ async function downloadCSV(uploadId) {
 
 async function approveUpload(uploadId) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/uploads/${uploadId}/approve`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
+        await apiCall(`/api/admin/uploads/${uploadId}/approve`, {
+            method: "POST"
         });
-        
-        if (!response.ok) throw new Error('Approval failed');
         
         showMessage('✅ Upload approved!', 'success');
         setTimeout(loadUploads, 2000);
@@ -93,16 +80,10 @@ async function rejectUpload(uploadId) {
     if (!reason) return;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/uploads/${uploadId}/reject`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-                'Content-Type': 'application/json'
-            },
+        await apiCall(`/api/admin/uploads/${uploadId}/reject`, {
+            method: "POST",
             body: JSON.stringify({ reason })
         });
-        
-        if (!response.ok) throw new Error('Rejection failed');
         
         showMessage('✅ Upload rejected!', 'success');
         setTimeout(loadUploads, 2000);

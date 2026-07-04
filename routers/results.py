@@ -5,6 +5,8 @@ import csv
 import io
 from services.csv_service import CSVService
 from services.stats_service import StatsService
+from services.cache_service import cache_service
+    
 from database.database import get_db
 from database.models import Student, Mark, Teacher
 from database.schemas import ResultsResponseSchema, MarkResponseSchema, CSVUploadResponseSchema,MessageSchema
@@ -230,19 +232,38 @@ async def upload_csv(
 @limiter.limit("100/hour")
 async def get_statistics(
     request: Request,
-    degree_id: str = Query(...),
     year: int = Query(...),
     semester: int = Query(...),
+    degree_id: str = Query(...),
     branch_id: str = Query(None),
     current_user: Teacher = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    from services.stats_service import StatsService
+    """Get college-wide statistics (CACHED)"""
     
-    return await StatsService.get_college_statistics(
-        current_user.college_id, year, semester, degree_id, branch_id, db
+    
+    # Step 1: Create unique cache key
+    cache_key = f"stats_college_{current_user.college_id}_{semester}_{year}_{degree_id}_{branch_id}"
+    
+    # Step 2: Check cache first
+    cached_result = cache_service.get(cache_key)
+    if cached_result:
+        return cached_result
+    
+    # Step 3: Not in cache, query database
+    result = await StatsService.get_college_statistics(
+        current_user.college_id,
+        year,
+        semester,
+        degree_id,
+        branch_id,
+        db
     )
-
+    
+    # Step 4: Store in cache for 1 hour
+    cache_service.set(cache_key, result, ttl_seconds=3600)
+    
+    return result
 
 @router.get("/statistics/my-uploads")
 @limiter.limit("100/hour")
@@ -255,8 +276,29 @@ async def get_my_uploads_statistics(
     current_user: Teacher = Depends(require_teacher),
     db: AsyncSession = Depends(get_db)
 ):
-    from services.stats_service import StatsService
+    """Get statistics for marks I uploaded (CACHED)"""
     
-    return await StatsService.get_teacher_upload_statistics(
-        current_user.college_id, current_user.teacher_id, year, semester, degree_id, branch_id, db
+    
+    # Step 1: Create unique cache key
+    cache_key = f"stats_teacher_{current_user.teacher_id}_{semester}_{year}_{degree_id}_{branch_id}"
+    
+    # Step 2: Check cache first
+    cached_result = cache_service.get(cache_key)
+    if cached_result:
+        return cached_result
+    
+    # Step 3: Not in cache, query database
+    result = await StatsService.get_teacher_upload_statistics(
+        current_user.college_id,
+        current_user.teacher_id,
+        year,
+        semester,
+        degree_id,
+        branch_id,
+        db
     )
+    
+    # Step 4: Store in cache for 1 hour
+    cache_service.set(cache_key, result, ttl_seconds=3600)
+    
+    return result

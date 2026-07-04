@@ -104,27 +104,13 @@ const btn = document.getElementById('calcBtn');
 const statusDiv = document.getElementById('status');
 
 async function calculateSGPA() {
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-        window.location.href = "teacher-login.html";
-        return;
-    }
-
     btn.disabled = true;
     statusDiv.innerText = "Processing SGPA calculation...";
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/calculate-sgpa`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
+        const data = await apiCall("/api/admin/calculate-sgpa", {
+            method: "POST"
         });
-
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.detail || "Failed");
 
         statusDiv.innerHTML = `
             <div class="success">

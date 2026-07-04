@@ -34,10 +34,7 @@ async def get_current_user(
     """
     token = credentials.credentials
 
-    try:
-        payload = decode_token(token)
-    except Exception as e:
-        raise InvalidTokenException()
+    payload = decode_token(token)
 
     user_id: str = payload.get("user_id")
     college_id: str = payload.get("college_id")

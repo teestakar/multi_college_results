@@ -48,6 +48,17 @@ class StatsService:
             # Calculate statistics (all the same logic)
             total_students = len(semester_gpas)
             passed = sum(1 for s in semester_gpas if s.status in ("pass", "pass_with_backlog"))
+            failed = len([s for s in semester_gpas if s.status == "fail"])
+
+            pass_with_backlog = len([
+                s for s in semester_gpas
+                if s.status == "pass_with_backlog"
+            ])
+
+            students_with_backlog = len([
+                s for s in semester_gpas
+                if s.backlog_count > 0
+            ])
             pass_percentage = (passed / total_students * 100) if total_students > 0 else 0
             
             sgpas = [s.sgpa for s in semester_gpas]
@@ -98,6 +109,10 @@ class StatsService:
                 "top_10_students": top_10_students,
                 "sgpa_distribution": sgpa_distribution,
                 "subject_wise_failures": subject_wise_failures,
+                "pass_count": passed,
+                "fail_count": failed,
+                "pass_with_backlog": pass_with_backlog,
+                "students_with_backlog": students_with_backlog,
                 "message": f"Statistics for Degree {degree_id}, Year {year}, Semester {semester}"
             }
         
@@ -136,21 +151,19 @@ class StatsService:
                 )
             )
             my_student_rolls = [row[0] for row in my_marks_result.all()]
-            
+
             if not my_student_rolls:
-                return {
-                    "total_students": 0,
-                    "pass_count": 0,
-                    "fail_count": 0,
-                    "pass_rate": 0,
-                    "avg_sgpa": 0,
-                    "with_backlog": 0,
-                    "message": "No marks found for your uploads"
-                }
+                raise HTTPException(
+                    status_code=404,
+                    detail="No marks found for your uploads"
+                )
+            
             
             # Step 2: Get SGPA
             query = select(SemesterGPA).where(
                 (SemesterGPA.college_id == college_id) &
+                (SemesterGPA.degree_id == degree_uuid) &
+                (SemesterGPA.year == year) &
                 (SemesterGPA.semester == semester) &
                 (SemesterGPA.roll_no.in_(my_student_rolls))
             )
@@ -160,39 +173,93 @@ class StatsService:
             
             result = await db.execute(query)
             sgpas = result.scalars().all()
-            
+
             if not sgpas:
-                return {
-                    "total_students": 0,
-                    "pass_count": 0,
-                    "fail_count": 0,
-                    "pass_rate": 0,
-                    "avg_sgpa": 0,
-                    "with_backlog": 0,
-                    "message": "No SGPA data found for your uploads"
-                }
+                raise HTTPException(
+                    status_code=404,
+                    detail="No SGPA data found"
+                )
+            
+            
             
             # Calculate
             total_students = len(sgpas)
-            pass_count = len([s for s in sgpas if s.status == "pass"])
+            pass_count = len([
+                s for s in sgpas
+                if s.status in ("pass", "pass_with_backlog")
+            ])
             fail_count = len([s for s in sgpas if s.status == "fail"])
             with_backlog = len([s for s in sgpas if s.backlog_count > 0])
             avg_sgpa = sum(s.sgpa for s in sgpas) / total_students
+            highest_sgpa = max(s.sgpa for s in sgpas)
+            lowest_sgpa = min(s.sgpa for s in sgpas)
             pass_rate = (pass_count / total_students * 100) if total_students > 0 else 0
-            
+            pass_with_backlog = len([
+                s for s in sgpas
+                if s.status == "pass_with_backlog"
+            ])
+            top_10 = sorted(
+                sgpas,
+                key=lambda x: x.sgpa,
+                reverse=True
+            )[:10]
+
+            top_10_students = [
+                {
+                    "roll_no": s.roll_no,
+                    "sgpa": round(s.sgpa,2),
+                    "status": s.status
+                }
+                for s in top_10
+            ]
+            sgpa_distribution = {
+                "9.0-10.0": len([s for s in sgpas if s.sgpa >= 9]),
+                "8.0-9.0": len([s for s in sgpas if 8 <= s.sgpa < 9]),
+                "7.0-8.0": len([s for s in sgpas if 7 <= s.sgpa < 8]),
+                "6.0-7.0": len([s for s in sgpas if 6 <= s.sgpa < 7]),
+                "<6.0": len([s for s in sgpas if s.sgpa < 6]),
+            }
+            mark_query = select(
+                Mark.subject_name,
+                func.count(Mark.id)
+            ).where(
+                (Mark.college_id == college_id) &
+                (Mark.semester == semester) &
+                (Mark.uploaded_by == teacher_id) &
+                (Mark.points < 6.0)
+            ).group_by(Mark.subject_name)
+
+            mark_result = await db.execute(mark_query)
+
+            subject_wise_failures = {
+                subject: count
+                for subject, count in mark_result.all()
+            }
             return {
                 "total_students": total_students,
                 "pass_count": pass_count,
                 "fail_count": fail_count,
                 "pass_rate": round(pass_rate, 2),
                 "avg_sgpa": round(avg_sgpa, 2),
+                "highest_sgpa": round(highest_sgpa, 2),
+                "lowest_sgpa": round(lowest_sgpa, 2),
                 "with_backlog": with_backlog,
+                "subject_wise_failures": subject_wise_failures,
                 "year": year,
                 "semester": semester,
                 "degree_id": str(degree_id),
                 "branch_id": str(branch_id) if branch_id else None,
+                "pass_with_backlog": pass_with_backlog,
+                "top_10_students": top_10_students,
+                "sgpa_distribution": sgpa_distribution,
                 "message": f"Statistics for marks I uploaded - Semester {semester}, Year {year}"
             }
         
+        except HTTPException:
+            raise
+
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error: {str(e)}"
+            )

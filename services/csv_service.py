@@ -204,14 +204,15 @@ class CSVService:
             "skipped_rows": skipped_rows
         }
     
+    """
     @staticmethod
     async def _process_student_marks(student_marks, current_user, db):
-        """
+        
         Process all students and marks
         
         DO NOT calculate SGPA during upload/approval
         SGPA will be calculated separately when admin clicks button
-        """
+        
         
         success = 0
         failed = 0
@@ -256,10 +257,13 @@ class CSVService:
             "skipped_marks": skipped_marks,
             "inserted_sgpa": 0  # ← Always 0 now (no SGPA calculation)
         }
+
+    
+    
     
     @staticmethod
     async def _calculate_and_save_sgpa(roll_no, semester, marks, student, current_user, db):
-        """Calculate SGPA and save to DB"""
+        Calculate SGPA and save to DB
         
         total_credits = sum(m["credits"] for m in marks)
         total_cp = sum(m["credit_points"] for m in marks)
@@ -311,94 +315,130 @@ class CSVService:
             existing_sgpa.status = status
             existing_sgpa.backlog_count = backlog
             return 0
+            """
     
+
     @staticmethod
-    async def _process_marks_for_student(roll_no, semester, marks, current_user, db):
+    async def process_and_insert_marks(student_marks, current_user, db):
         """
-        Process all marks for a student
+        Single function: Collect ALL marks from CSV, insert ALL at once (BULK)
         
-        Also sets needs_recalculation flag if marks are updated
+        student_marks = {(roll_no, semester): [mark1, mark2, ...], ...}
         """
         
         inserted = 0
         updated = 0
         skipped = 0
+        failed = 0
         
-        for m in marks:
-            # Check if mark already exists
-            existing_mark_result = await db.execute(
-                select(Mark).where(
-                    (Mark.roll_no == roll_no) &
-                    (Mark.semester == semester) &
-                    (Mark.subject_code == m["subject_code"]) &
-                    (Mark.college_id == current_user.college_id)
+        # Step 1: Collect ALL marks to insert (entire CSV)
+        marks_to_insert = []
+        marks_to_update = []
+        
+        # Step 2: Loop through ALL students and ALL their marks
+        for (roll_no, semester), marks in student_marks.items():
+            
+            # Get student (check if exists)
+            student_result = await db.execute(
+                select(Student).where(
+                    (Student.roll_no == roll_no) &
+                    (Student.college_id == current_user.college_id)
                 )
             )
-            existing_mark = existing_mark_result.scalars().first()
+            student = student_result.scalars().first()
             
-            if not existing_mark:
-                # Case 1: NEW mark - just insert
-                db.add(Mark(
-                    roll_no=roll_no,
-                    college_id=current_user.college_id,
-                    semester=semester,
-                    subject_code=m["subject_code"],
-                    subject_name=m["subject_name"],
-                    grade=m["grade"],
-                    points=m["points"],
-                    credits=m["credits"],
-                    credit_points=m["credit_points"],
-                    uploaded_by=current_user.teacher_id
-                ))
-                inserted += 1
-                # ✅ NEW: Check if SGPA exists - if yes, mark for recalculation
-                sgpa_result = await db.execute(
-                    select(SemesterGPA).where(
-                        (SemesterGPA.roll_no == roll_no) &
-                        (SemesterGPA.semester == semester) &
-                        (SemesterGPA.college_id == current_user.college_id)
+            if not student:
+                failed += 1
+                continue
+            
+            # Process each mark for this student
+            for m in marks:
+                
+                # Check if mark exists
+                existing_result = await db.execute(
+                    select(Mark).where(
+                        (Mark.roll_no == roll_no) &
+                        (Mark.semester == semester) &
+                        (Mark.subject_code == m["subject_code"]) &
+                        (Mark.college_id == current_user.college_id)
                     )
                 )
-                sgpa = sgpa_result.scalars().first()
+                existing_mark = existing_result.scalars().first()
                 
-                if sgpa:
-                    sgpa.needs_recalculation = True  # ✅ SGPA exists, mark as outdated
-            
-            elif (
-                existing_mark.subject_name == m["subject_name"] and
-                existing_mark.grade == m["grade"] and
-                existing_mark.points == m["points"] and
-                existing_mark.credits == m["credits"] and
-                existing_mark.credit_points == m["credit_points"]
-            ):
-                # Case 3: SAME mark - skip
-                skipped += 1
-                # Do nothing - leave flag unchanged
-            
-            else:
-                # Case 2: UPDATED mark - update and set flag
-                existing_mark.subject_name = m["subject_name"]
-                existing_mark.grade = m["grade"]
-                existing_mark.points = m["points"]
-                existing_mark.credits = m["credits"]
-                existing_mark.credit_points = m["credit_points"]
-                updated += 1
-                
-                # ✅ Set flag for SGPA recalculation
-                sgpa_result = await db.execute(
-                    select(SemesterGPA).where(
-                        (SemesterGPA.roll_no == roll_no) &
-                        (SemesterGPA.semester == semester) &
-                        (SemesterGPA.college_id == current_user.college_id)
+                if not existing_mark:
+                    # NEW mark: collect for bulk insert
+                    marks_to_insert.append({
+                        "roll_no": roll_no,
+                        "college_id": current_user.college_id,
+                        "semester": semester,
+                        "subject_code": m["subject_code"],
+                        "subject_name": m["subject_name"],
+                        "grade": m["grade"],
+                        "points": m["points"],
+                        "credits": m["credits"],
+                        "credit_points": m["credit_points"],
+                        "uploaded_by": current_user.teacher_id
+                    })
+                    inserted += 1
+                    
+                    # If SGPA exists, mark for recalculation
+                    sgpa_result = await db.execute(
+                        select(SemesterGPA).where(
+                            (SemesterGPA.roll_no == roll_no) &
+                            (SemesterGPA.semester == semester) &
+                            (SemesterGPA.college_id == current_user.college_id)
+                        )
                     )
-                )
-                sgpa = sgpa_result.scalars().first()
+                    sgpa = sgpa_result.scalars().first()
+                    if sgpa:
+                        sgpa.needs_recalculation = True
                 
-                if sgpa:
-                    sgpa.needs_recalculation = True  # ✅ Mark as outdated
+                elif (
+                    existing_mark.subject_name == m["subject_name"] and
+                    existing_mark.grade == m["grade"] and
+                    existing_mark.points == m["points"] and
+                    existing_mark.credits == m["credits"] and
+                    existing_mark.credit_points == m["credit_points"]
+                ):
+                    # SAME mark: skip
+                    skipped += 1
+                
+                else:
+                    # UPDATED mark: update and set flag
+                    existing_mark.subject_name = m["subject_name"]
+                    existing_mark.grade = m["grade"]
+                    existing_mark.points = m["points"]
+                    existing_mark.credits = m["credits"]
+                    existing_mark.credit_points = m["credit_points"]
+                    updated += 1
+                    
+                    # Set flag for recalculation
+                    sgpa_result = await db.execute(
+                        select(SemesterGPA).where(
+                            (SemesterGPA.roll_no == roll_no) &
+                            (SemesterGPA.semester == semester) &
+                            (SemesterGPA.college_id == current_user.college_id)
+                        )
+                    )
+                    sgpa = sgpa_result.scalars().first()
+                    if sgpa:
+                        sgpa.needs_recalculation = True
         
-        return {"inserted": inserted, "updated": updated, "skipped": skipped}
-    
+        # Step 3: BULK INSERT ALL collected marks at once (THE SPEED!)
+        if marks_to_insert:
+            from sqlalchemy import insert
+            await db.execute(
+                insert(Mark).values(marks_to_insert)
+            )
+        
+        return {
+            "inserted_marks": inserted,
+            "updated_marks": updated,
+            "skipped_marks": skipped,
+            "failed_marks": failed
+        }
+
+
     @staticmethod
     def _safe_int(v):
         try:

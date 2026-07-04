@@ -33,17 +33,7 @@ async function loadTeacherProfile() {
     try {
         console.log('Loading profile...');
         
-        const response = await fetch(`${API_BASE_URL}/api/auth/teacher/me`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load profile');
-        }
-        
-        const data = await response.json();
+        const data = await apiCall("/api/auth/teacher/me");
         console.log('Profile:', data);
         
         // Update UI

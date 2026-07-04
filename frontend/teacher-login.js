@@ -67,17 +67,7 @@ async function handleTeacherLogin(event) {
 
             setTimeout(async () => {
                 try {
-                    const res = await fetch(`${API_BASE_URL}/api/auth/teacher/me`, {
-                        headers: {
-                            Authorization: `Bearer ${data.access_token}`
-                        }
-                    });
-
-                    if (!res.ok) {
-                        throw new Error("Session expired or unauthorized");
-                    }
-
-                    const profile = await res.json();
+                    const profile = await apiCall("/api/auth/teacher/me");
                     console.log("PROFILE:", profile);
 
                     localStorage.setItem("user_type", profile.role);

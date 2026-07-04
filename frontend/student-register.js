@@ -44,20 +44,10 @@ function initializeForm() {
         };
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/admin/register-student`, {
+            const data = await apiCall("/api/admin/register-student", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${localStorage.getItem('access_token')}`
-                },
                 body: JSON.stringify(payload)
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.detail || "Registration failed");
-            }
 
             messageDiv.className = "message success";
             messageDiv.innerText = "Student registered successfully ✔";

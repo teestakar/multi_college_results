@@ -1,285 +1,298 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Statistics - Multi-College Result Platform</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f5f5f5;
+      }
+
+      .navbar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .navbar h1 {
+        font-size: 24px;
+      }
+
+      .navbar a {
+        color: white;
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+
+      .filters {
+        background: white;
+        padding: 25px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        gap: 20px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+
+      .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .filter-group label {
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+      }
+
+      .filter-group select {
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+        min-width: 180px;
+      }
+
+      .filter-group select:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .btn {
+        padding: 12px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .btn:hover {
+        opacity: 0.9;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 40px;
+      }
+
+      .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
         }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f5f5;
+        100% {
+          transform: rotate(360deg);
         }
-        
-        .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .navbar h1 {
-            font-size: 24px;
-        }
-        
-        .navbar a {
-            color: white;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .container {
-            max-width: 1000px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-        
-        .filters {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            display: flex;
-            gap: 20px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-        
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .filter-group label {
-            font-weight: 600;
-            color: #333;
-            font-size: 14px;
-        }
-        
-        .filter-group select {
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            min-width: 180px;
-        }
-        
-        .filter-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .btn {
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-        
-        .btn:hover {
-            opacity: 0.9;
-        }
-        
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 40px;
-        }
-        
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .stats-card {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-        
-        .stats-card h2 {
-            color: #333;
-            margin-bottom: 25px;
-            font-size: 22px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 15px;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-        }
-        
-        .stat-item {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 25px;
-            border-radius: 8px;
-            text-align: center;
-            border-left: 5px solid #667eea;
-        }
-        
-        .stat-item h3 {
-            color: #666;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 15px;
-        }
-        
-        .stat-item .value {
-            color: #333;
-            font-size: 36px;
-            font-weight: 700;
-        }
-        
-        .message {
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        
-        .message.error {
-            background: #f8d7da;
-            color: #721c24;
-            display: block;
-        }
-        
-        .message.info {
-            background: #e7f3ff;
-            color: #004085;
-            display: block;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        table th {
-            background: #f0f0f0;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 2px solid #667eea;
-            font-weight: 600;
-        }
-        
-        table td {
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
-        }
-        
-        table tr:hover {
-            background: #f9f9f9;
-        }
-        
-        .role-tag {
-            display: inline-block;
-            padding: 6px 12px;
-            background: #667eea;
-            color: white;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
+      }
+
+      .stats-card {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+      }
+
+      .stats-card h2 {
+        color: #333;
+        margin-bottom: 25px;
+        font-size: 22px;
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 15px;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+      }
+
+      .stat-item {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 25px;
+        border-radius: 8px;
+        text-align: center;
+        border-left: 5px solid #667eea;
+      }
+
+      .stat-item h3 {
+        color: #666;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 15px;
+      }
+
+      .stat-item .value {
+        color: #333;
+        font-size: 36px;
+        font-weight: 700;
+      }
+
+      .message {
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        display: none;
+      }
+
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        display: block;
+      }
+
+      .message.info {
+        background: #e7f3ff;
+        color: #004085;
+        display: block;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      table th {
+        background: #f0f0f0;
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid #667eea;
+        font-weight: 600;
+      }
+
+      table td {
+        padding: 12px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      table tr:hover {
+        background: #f9f9f9;
+      }
+
+      .role-tag {
+        display: inline-block;
+        padding: 6px 12px;
+        background: #667eea;
+        color: white;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="navbar">
-        <h1 id="pageTitle">📊 Statistics</h1>
-        <a id="backBtn" href="teacher-dashboard.html">← Back</a>
+      <h1 id="pageTitle">📊 Statistics</h1>
+      <a id="backBtn" href="teacher-dashboard.html">← Back</a>
     </div>
-    
+
     <div class="container">
-        <div class="message" id="message"></div>
-        
-        <!-- TEACHER ONLY: Hide branch filter -->
-        <div class="filters" id="filterSection">
-            <div class="filter-group">
-                <label for="degreeSelect">Degree:</label>
-                <select id="degreeSelect" onchange="onDegreeChange()">
-                    <option value="">Loading degrees...</option>
-                </select>
-            </div>
-            
-            <div class="filter-group" id="branchGroup">
-                <label for="branchSelect">Branch:</label>
-                <select id="branchSelect">
-                    <option value="">Select branch first</option>
-                    <option value="all">All Branches</option>
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <label for="yearSelect">Batch Year:</label>
-                <select id="yearSelect">
-                    <option value="">Select Year</option>
-                    <option value="2020">2020</option>
-                    <option value="2021">2021</option>
-                    <option value="2022">2022</option>
-                    <option value="2023">2023</option>
-                    <option value="2024">2024</option>
-                    <option value="2025">2025</option>
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <label for="semesterSelect">Semester:</label>
-                <select id="semesterSelect">
-                    <option value="">Select Semester</option>
-                    <option value="1">Semester 1</option>
-                    <option value="2">Semester 2</option>
-                    <option value="3">Semester 3</option>
-                    <option value="4">Semester 4</option>
-                    <option value="5">Semester 5</option>
-                    <option value="6">Semester 6</option>
-                    <option value="7">Semester 7</option>
-                    <option value="8">Semester 8</option>
-                </select>
-            </div>
-            
-            <button class="btn" onclick="loadStatistics()">Load Statistics</button>
+      <div class="message" id="message"></div>
+
+      <!-- TEACHER ONLY: Hide branch filter -->
+      <div class="filters" id="filterSection">
+        <div class="filter-group">
+          <label for="degreeSelect">Degree:</label>
+          <select id="degreeSelect" onchange="onDegreeChange()">
+            <option value="">Loading degrees...</option>
+          </select>
         </div>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Loading...</p>
+
+        <div class="filter-group" id="branchGroup">
+          <label for="branchSelect">Branch:</label>
+          <select id="branchSelect">
+            <option value="">Select branch first</option>
+            <option value="all">All Branches</option>
+          </select>
         </div>
-        
-        <div id="statsContainer"></div>
+
+        <div class="filter-group">
+          <label for="yearSelect">Batch Year:</label>
+          <select id="yearSelect">
+            <option value="">Select Year</option>
+            <option value="2020">2020</option>
+            <option value="2021">2021</option>
+            <option value="2022">2022</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="semesterSelect">Semester:</label>
+          <select id="semesterSelect">
+            <option value="">Select Semester</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
+          </select>
+        </div>
+
+        <button class="btn" onclick="loadStatistics()">Load Statistics</button>
+      </div>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+      </div>
+
+      <div id="statsContainer"></div>
+      <div class="stats-card">
+        <h2>SGPA Distribution</h2>
+
+        <canvas id="sgpaChart"></canvas>
+      </div>
+
+      <div id="topStudentsContainer"></div>
+      <div id="subjectFailuresContainer"></div>
     </div>
-    
+
     <script src="api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="statistics.js"></script>
-</body>
+  </body>
 </html>

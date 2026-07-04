@@ -10,6 +10,7 @@ from database.models import UploadBatch, Teacher, SemesterGPA, Mark,Student
 from auth.permissions import require_admin
 from auth.exceptions import ResourceNotFoundException, CSVProcessingError
 from services.csv_service import CSVService
+from services.cache_service import cache_service
 
 router = APIRouter()
 
@@ -190,7 +191,7 @@ async def approve_upload(
             raise ResourceNotFoundException("Teacher")
         
         # Step 4: Process marks (insert/update)
-        mark_result = await CSVService._process_student_marks(
+        mark_result = await CSVService.process_and_insert_marks(
             student_marks,
             uploader,  # Use the original teacher who uploaded
             db
@@ -201,6 +202,8 @@ async def approve_upload(
         upload.completed_at = datetime.utcnow()
         await db.commit()
         
+        cache_service.invalidate_pattern("stats_")
+        
         # Step 6: Return result
         return {
             "status": "success",
@@ -208,7 +211,7 @@ async def approve_upload(
             "marks_inserted": mark_result["inserted_marks"],
             "marks_updated": mark_result["updated_marks"],
             "marks_skipped": mark_result["skipped_marks"],
-            "sgpa_inserted": mark_result["inserted_sgpa"],
+           # "sgpa_inserted": mark_result["inserted_sgpa"],
             "message": f"Upload approved successfully. {mark_result['inserted_marks'] + mark_result['updated_marks']} marks processed"
         }
     
@@ -217,6 +220,9 @@ async def approve_upload(
         raise
     except Exception as e:
         await db.rollback()
+        print(f"DEBUG: Approval error: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to approve upload: {str(e)}"
@@ -383,7 +389,8 @@ async def calculate_sgpa(
         
         print(f"DEBUG: Committing... calculated={calculated}, updated={updated}")
         await db.commit()
-        
+        cache_service.invalidate_pattern("stats_")
+
         return {
             "status": "success",
             "calculated": calculated,

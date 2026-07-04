@@ -9,6 +9,7 @@ const statsContainer = document.getElementById('statsContainer');
 const messageDiv = document.getElementById('message');
 const loadingDiv = document.getElementById('loading');
 
+let chart = null;
 let userRole = 'teacher';
 let degreesList = [];
 
@@ -51,13 +52,7 @@ function setupUI() {
 // ================= LOAD DEGREES =================
 async function loadDegrees() {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/results/degrees`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-        });
-
-        const data = await res.json();
+        const data = await apiCall("/api/results/degrees");
         degreesList = Array.isArray(data) ? data : [];
 
         degreeSelect.innerHTML = `<option value="">Select Degree</option>`;
@@ -77,13 +72,7 @@ async function onDegreeChange() {
     if (!degreeId) return;
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/results/branches?degree_id=${degreeId}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-        });
-
-        const data = await res.json();
+        const data = await apiCall(`/api/results/branches?degree_id=${degreeId}`);
         const branches = Array.isArray(data) ? data : [];
 
         branchSelect.innerHTML = `<option value="all">All Branches</option>`;
@@ -112,6 +101,16 @@ async function loadStatistics() {
     loadingDiv.style.display = "block";
     statsContainer.innerHTML = "";
 
+    document.getElementById("topStudentsContainer").innerHTML = "";
+
+    document.getElementById("subjectFailuresContainer").innerHTML = "";
+
+    if (chart) {
+        chart.destroy();
+        chart = null;
+    }
+    statsContainer.innerHTML = "";
+
     try {
         let url = "";
 
@@ -123,20 +122,24 @@ async function loadStatistics() {
             url = `/api/results/statistics/my-uploads?degree_id=${degreeId}&year=${year}&semester=${semester}`;
         }
 
-        const res = await fetch(`${API_BASE_URL}${url}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            }
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.detail || "Failed");
+        const data = await apiCall(url);
 
         renderStats(data);
 
-    } catch (err) {
-        showMessage(err.message, "error");
+    } catch(err){
+
+      statsContainer.innerHTML = "";
+
+      document.getElementById("topStudentsContainer").innerHTML = "";
+
+      document.getElementById("subjectFailuresContainer").innerHTML = "";
+
+      if(chart){
+        chart.destroy();
+        chart = null;
+      }
+
+      showMessage(err.message,"error");
     } finally {
         loadingDiv.style.display = "none";
     }
@@ -144,6 +147,7 @@ async function loadStatistics() {
 
 // ================= RENDER =================
 function renderStats(data) {
+    messageDiv.style.display = "none";
     if (userRole === "admin") renderAdmin(data);
     else renderTeacher(data);
 }
@@ -158,9 +162,54 @@ function renderAdmin(data) {
                 <div class="stat-item"><h3>Pass %</h3><div class="value">${data.pass_percentage}%</div></div>
                 <div class="stat-item"><h3>Highest SGPA</h3><div class="value">${data.highest_sgpa}</div></div>
                 <div class="stat-item"><h3>Avg SGPA</h3><div class="value">${data.average_sgpa}</div></div>
+                <div class="stat-item">
+                <h3>Lowest SGPA</h3>
+                <div class="value">${data.lowest_sgpa}</div>
+                </div>
             </div>
         </div>
     `;
+    statsContainer.innerHTML += `
+        <div class="stats-card">
+
+        <h2>Result Summary</h2>
+
+        <div class="stats-grid">
+
+        <div class="stat-item">
+        <h3>Passed</h3>
+        <div class="value">${data.pass_count}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Failed</h3>
+        <div class="value">${data.fail_count}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Pass with Backlog</h3>
+        <div class="value">${data.pass_with_backlog}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Students with Backlogs</h3>
+        <div class="value">${data.students_with_backlog}</div>
+        </div>
+
+        </div>
+
+        </div>
+    `;
+
+    if (data.sgpa_distribution) {
+        renderChart(data.sgpa_distribution);
+    }
+    
+    if (data.top_10_students) {
+        renderTopStudents(data.top_10_students);
+    }
+
+    renderSubjectFailures(data.subject_wise_failures);
 }
 
 // ================= TEACHER UI =================
@@ -176,11 +225,214 @@ function renderTeacher(data) {
             </div>
         </div>
     `;
+
+    statsContainer.innerHTML += `
+        <div class="stats-card">
+
+        <h2>Extra Statistics</h2>
+
+        <div class="stats-grid">
+
+        <div class="stat-item">
+        <h3>Average SGPA</h3>
+        <div class="value">${data.avg_sgpa}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Highest SGPA</h3>
+        <div class="value">${data.highest_sgpa}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Lowest SGPA</h3>
+        <div class="value">${data.lowest_sgpa}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Pass with Backlogs</h3>
+        <div class="value">${data.pass_with_backlog}</div>
+        </div>
+
+        <div class="stat-item">
+        <h3>Students with Backlogs</h3>
+        <div class="value">${data.with_backlog}</div>
+        </div>
+
+        </div>
+
+        </div>
+    `;
+
+    if (data.sgpa_distribution) {
+        renderChart(data.sgpa_distribution);
+    }
+    
+    if (data.top_10_students) {
+        renderTopStudents(data.top_10_students);
+    }
+
+    renderSubjectFailures(data.subject_wise_failures);
 }
+
+function renderChart(distribution){
+
+    if(chart){
+        chart.destroy();
+    }
+
+    const ctx = document
+      .getElementById("sgpaChart")
+      .getContext("2d");
+
+    chart=new Chart(ctx,{
+
+        type:"bar",
+
+        data:{
+            labels:Object.keys(distribution),
+
+            datasets:[{
+
+                label:"Students",
+
+                data:Object.values(distribution)
+
+            }]
+        },
+
+        options:{
+
+          responsive:true,
+
+          plugins:{
+              title:{
+                  display:true,
+                  text:"SGPA Distribution"
+              },
+              legend:{
+                  display:false
+              }
+          },
+
+          scales:{
+              y:{
+                  beginAtZero:true
+              }
+          }
+        }
+
+    });
+
+}
+
+
+
+function renderTopStudents(students){
+
+    const div=document.getElementById("topStudentsContainer");
+
+    if(!students || students.length===0){
+
+        div.innerHTML="";
+        return;
+    }
+
+    let html=`
+
+<div class="stats-card">
+
+<h2>Top 10 Students</h2>
+
+<table>
+
+<tr>
+
+<th>Rank</th>
+<th>Roll No</th>
+<th>SGPA</th>
+<th>Status</th>
+
+</tr>
+`;
+
+students.forEach((s,i)=>{
+
+html+=`
+
+<tr>
+
+<td>${i+1}</td>
+
+<td>${s.roll_no}</td>
+
+<td>${s.sgpa}</td>
+
+<td>${s.status}</td>
+
+</tr>
+
+`;
+
+});
+
+html+=`
+
+</table>
+
+</div>
+`;
+
+div.innerHTML=html;
+
+}
+
+
 
 // ================= MESSAGE =================
 function showMessage(text, type) {
     messageDiv.textContent = text;
     messageDiv.className = `message ${type}`;
     messageDiv.style.display = "block";
+}
+
+
+function renderSubjectFailures(subjects){
+
+    const div = document.getElementById("subjectFailuresContainer");
+
+    if(!subjects || Object.keys(subjects).length===0){
+        div.innerHTML="";
+        return;
+    }
+
+    let html=`
+    <div class="stats-card">
+
+    <h2>Subject-wise Failures</h2>
+
+    <table>
+
+    <tr>
+        <th>Subject</th>
+        <th>Failures</th>
+    </tr>
+    `;
+
+    Object.entries(subjects).forEach(([subject,count])=>{
+
+        html+=`
+        <tr>
+            <td>${subject}</td>
+            <td>${count}</td>
+        </tr>
+        `;
+
+    });
+
+    html+=`
+    </table>
+    </div>
+    `;
+
+    div.innerHTML=html;
 }
