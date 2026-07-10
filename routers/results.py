@@ -6,6 +6,8 @@ import io
 from services.csv_service import CSVService
 from services.stats_service import StatsService
 from services.cache_service import cache_service
+from services.stats_service import StatsService
+from services.redis_cache_service import redis_cache_service
     
 from database.database import get_db
 from database.models import Student, Mark, Teacher
@@ -239,18 +241,14 @@ async def get_statistics(
     current_user: Teacher = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get college-wide statistics (CACHED)"""
     
     
-    # Step 1: Create unique cache key
     cache_key = f"stats_college_{current_user.college_id}_{semester}_{year}_{degree_id}_{branch_id}"
     
-    # Step 2: Check cache first
-    cached_result = cache_service.get(cache_key)
+    cached_result = redis_cache_service.get(cache_key)
     if cached_result:
         return cached_result
     
-    # Step 3: Not in cache, query database
     result = await StatsService.get_college_statistics(
         current_user.college_id,
         year,
@@ -260,10 +258,11 @@ async def get_statistics(
         db
     )
     
-    # Step 4: Store in cache for 1 hour
-    cache_service.set(cache_key, result, ttl_seconds=3600)
+    redis_cache_service.set(cache_key, result, ttl_seconds=3600)
     
     return result
+
+
 
 @router.get("/statistics/my-uploads")
 @limiter.limit("100/hour")
@@ -276,18 +275,13 @@ async def get_my_uploads_statistics(
     current_user: Teacher = Depends(require_teacher),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get statistics for marks I uploaded (CACHED)"""
-    
-    
-    # Step 1: Create unique cache key
+        
     cache_key = f"stats_teacher_{current_user.teacher_id}_{semester}_{year}_{degree_id}_{branch_id}"
     
-    # Step 2: Check cache first
-    cached_result = cache_service.get(cache_key)
+    cached_result = redis_cache_service.get(cache_key)
     if cached_result:
         return cached_result
     
-    # Step 3: Not in cache, query database
     result = await StatsService.get_teacher_upload_statistics(
         current_user.college_id,
         current_user.teacher_id,
@@ -298,7 +292,6 @@ async def get_my_uploads_statistics(
         db
     )
     
-    # Step 4: Store in cache for 1 hour
-    cache_service.set(cache_key, result, ttl_seconds=3600)
+    redis_cache_service.set(cache_key, result, ttl_seconds=3600)
     
     return result

@@ -99,27 +99,24 @@ class CSVService:
             parts = line.split(",")
             
             if len(parts) != 8:
-                errors.append(f"Row {i}: column mismatch")
-                skipped_rows += 1
-                continue
+                raise CSVParseError(
+                details=f"Row {i}: Expected 8 columns, got {len(parts)}"
+            )
             
-            roll_no = parts[0].strip()
-            semester = CSVService._safe_int(parts[1])
-            
-            if semester is None:
-                errors.append(f"Row {i}: invalid semester")
-                skipped_rows += 1
-                continue
-            
-            key = (roll_no, semester)
-            
+            validated = CSVService._validate_row(parts, i)
+
+            key = (
+                validated["roll_no"],
+                validated["semester"]
+            )
+
             student_marks.setdefault(key, []).append({
-                "subject_code": parts[2].strip(),
-                "subject_name": parts[3].strip(),
-                "grade": parts[4].strip(),
-                "points": CSVService._safe_float(parts[5]),
-                "credits": CSVService._safe_float(parts[6]),
-                "credit_points": CSVService._safe_float(parts[7]),
+                "subject_code": validated["subject_code"],
+                "subject_name": validated["subject_name"],
+                "grade": validated["grade"],
+                "points": validated["points"],
+                "credits": validated["credits"],
+                "credit_points": validated["credit_points"],
             })
         
         # ← CHANGED: Return success dict, not error dict
@@ -174,27 +171,24 @@ class CSVService:
             parts = line.split(",")
             
             if len(parts) != 8:
-                errors.append(f"Row {i}: column mismatch")
-                skipped_rows += 1
-                continue
+                raise CSVParseError(
+                details=f"Row {i}: Expected 8 columns, got {len(parts)}"
+            )
             
-            roll_no = parts[0].strip()
-            semester = CSVService._safe_int(parts[1])
-            
-            if semester is None:
-                errors.append(f"Row {i}: invalid semester")
-                skipped_rows += 1
-                continue
-            
-            key = (roll_no, semester)
-            
+            validated = CSVService._validate_row(parts, i)
+
+            key = (
+                validated["roll_no"],
+                validated["semester"]
+            )
+
             student_marks.setdefault(key, []).append({
-                "subject_code": parts[2].strip(),
-                "subject_name": parts[3].strip(),
-                "grade": parts[4].strip(),
-                "points": CSVService._safe_float(parts[5]),
-                "credits": CSVService._safe_float(parts[6]),
-                "credit_points": CSVService._safe_float(parts[7]),
+                "subject_code": validated["subject_code"],
+                "subject_name": validated["subject_name"],
+                "grade": validated["grade"],
+                "points": validated["points"],
+                "credits": validated["credits"],
+                "credit_points": validated["credit_points"],
             })
         
         return {
@@ -204,126 +198,11 @@ class CSVService:
             "skipped_rows": skipped_rows
         }
     
-    """
-    @staticmethod
-    async def _process_student_marks(student_marks, current_user, db):
-        
-        Process all students and marks
-        
-        DO NOT calculate SGPA during upload/approval
-        SGPA will be calculated separately when admin clicks button
-        
-        
-        success = 0
-        failed = 0
-        inserted_marks = 0
-        updated_marks = 0
-        skipped_marks = 0
-        
-        for (roll_no, semester), marks in student_marks.items():
-            
-            # Get student
-            res = await db.execute(
-                select(Student).where(
-                    (Student.roll_no == roll_no) &
-                    (Student.college_id == current_user.college_id)
-                )
-            )
-            student = res.scalars().first()
-            
-            if not student:
-                failed += 1
-                continue
-            
-            # ❌ REMOVED: SGPA calculation
-            # sgpa_result = await CSVService._calculate_and_save_sgpa(...)
-            # We'll handle SGPA separately in Task 5
-            
-            # Process marks only
-            mark_result = await CSVService._process_marks_for_student(
-                roll_no, semester, marks, current_user, db
-            )
-            inserted_marks += mark_result["inserted"]
-            updated_marks += mark_result["updated"]
-            skipped_marks += mark_result["skipped"]
-            
-            success += 1
-        
-        return {
-            "success": success,
-            "failed": failed,
-            "inserted_marks": inserted_marks,
-            "updated_marks": updated_marks,
-            "skipped_marks": skipped_marks,
-            "inserted_sgpa": 0  # ← Always 0 now (no SGPA calculation)
-        }
-
-    
-    
-    
-    @staticmethod
-    async def _calculate_and_save_sgpa(roll_no, semester, marks, student, current_user, db):
-        Calculate SGPA and save to DB
-        
-        total_credits = sum(m["credits"] for m in marks)
-        total_cp = sum(m["credit_points"] for m in marks)
-        
-        if total_credits == 0:
-            return 0
-        
-        sgpa = total_cp / total_credits
-        backlog = len([m for m in marks if m["points"] < 6.0])
-        
-        if backlog == 0:
-            status = "pass"
-        elif backlog <= 4:
-            status = "pass_with_backlog"
-        else:
-            status = "fail"
-        
-        # Check if exists
-        existing_sgpa_result = await db.execute(
-            select(SemesterGPA).where(
-                (SemesterGPA.roll_no == roll_no) &
-                (SemesterGPA.semester == semester) &
-                (SemesterGPA.college_id == current_user.college_id)
-            )
-        )
-        existing_sgpa = existing_sgpa_result.scalars().first()
-        
-        if not existing_sgpa:
-            db.add(
-                SemesterGPA(
-                    roll_no=roll_no,
-                    college_id=current_user.college_id,
-                    semester=semester,
-                    year=student.year,
-                    degree_id=student.degree_id,
-                    branch_id=student.branch_id,
-                    sgpa=sgpa,
-                    total_credits=total_credits,
-                    total_credit_points=total_cp,
-                    status=status,
-                    backlog_count=backlog
-                )
-            )
-            return 1
-        else:
-            existing_sgpa.sgpa = sgpa
-            existing_sgpa.total_credits = total_credits
-            existing_sgpa.total_credit_points = total_cp
-            existing_sgpa.status = status
-            existing_sgpa.backlog_count = backlog
-            return 0
-            """
-    
-
+ 
     @staticmethod
     async def process_and_insert_marks(student_marks, current_user, db):
         """
         Single function: Collect ALL marks from CSV, insert ALL at once (BULK)
-        
-        student_marks = {(roll_no, semester): [mark1, mark2, ...], ...}
         """
         
         inserted = 0
@@ -331,42 +210,64 @@ class CSVService:
         skipped = 0
         failed = 0
         
-        # Step 1: Collect ALL marks to insert (entire CSV)
         marks_to_insert = []
-        marks_to_update = []
+
+        # ============================================================
+        # NEW: Batch-fetch everything BEFORE the loops (fixes N+1)
+        # ============================================================
         
-        # Step 2: Loop through ALL students and ALL their marks
-        for (roll_no, semester), marks in student_marks.items():
-            
-            # Get student (check if exists)
-            student_result = await db.execute(
-                select(Student).where(
-                    (Student.roll_no == roll_no) &
-                    (Student.college_id == current_user.college_id)
-                )
+        roll_nos = list({roll_no for (roll_no, _) in student_marks.keys()})
+
+        # 1) Fetch ALL relevant students at once
+        students_result = await db.execute(
+            select(Student).where(
+                (Student.college_id == current_user.college_id) &
+                (Student.roll_no.in_(roll_nos))
             )
-            student = student_result.scalars().first()
-            
+        )
+        student_by_roll = {s.roll_no: s for s in students_result.scalars().all()}
+
+        # 2) Fetch ALL existing marks for these students at once
+        existing_marks_result = await db.execute(
+            select(Mark).where(
+                (Mark.college_id == current_user.college_id) &
+                (Mark.roll_no.in_(roll_nos))
+            )
+        )
+        # Key by (roll_no, semester, subject_code) — matches your uniqueness rule
+        existing_mark_by_key = {
+            (m.roll_no, m.semester, m.subject_code): m
+            for m in existing_marks_result.scalars().all()
+        }
+
+        # 3) Fetch ALL existing SemesterGPA rows for these students at once
+        sgpa_result = await db.execute(
+            select(SemesterGPA).where(
+                (SemesterGPA.college_id == current_user.college_id) &
+                (SemesterGPA.roll_no.in_(roll_nos))
+            )
+        )
+        sgpa_by_roll_sem = {
+            (s.roll_no, s.semester): s
+            for s in sgpa_result.scalars().all()
+        }
+
+        # ============================================================
+        # Loops are now PURE PYTHON — no queries inside them
+        # ============================================================
+
+        for (roll_no, semester), marks in student_marks.items():
+
+            student = student_by_roll.get(roll_no)
             if not student:
                 failed += 1
                 continue
-            
-            # Process each mark for this student
+
             for m in marks:
-                
-                # Check if mark exists
-                existing_result = await db.execute(
-                    select(Mark).where(
-                        (Mark.roll_no == roll_no) &
-                        (Mark.semester == semester) &
-                        (Mark.subject_code == m["subject_code"]) &
-                        (Mark.college_id == current_user.college_id)
-                    )
-                )
-                existing_mark = existing_result.scalars().first()
-                
+                key = (roll_no, semester, m["subject_code"])
+                existing_mark = existing_mark_by_key.get(key)
+
                 if not existing_mark:
-                    # NEW mark: collect for bulk insert
                     marks_to_insert.append({
                         "roll_no": roll_no,
                         "college_id": current_user.college_id,
@@ -380,19 +281,11 @@ class CSVService:
                         "uploaded_by": current_user.teacher_id
                     })
                     inserted += 1
-                    
-                    # If SGPA exists, mark for recalculation
-                    sgpa_result = await db.execute(
-                        select(SemesterGPA).where(
-                            (SemesterGPA.roll_no == roll_no) &
-                            (SemesterGPA.semester == semester) &
-                            (SemesterGPA.college_id == current_user.college_id)
-                        )
-                    )
-                    sgpa = sgpa_result.scalars().first()
+
+                    sgpa = sgpa_by_roll_sem.get((roll_no, semester))
                     if sgpa:
                         sgpa.needs_recalculation = True
-                
+
                 elif (
                     existing_mark.subject_name == m["subject_name"] and
                     existing_mark.grade == m["grade"] and
@@ -400,37 +293,24 @@ class CSVService:
                     existing_mark.credits == m["credits"] and
                     existing_mark.credit_points == m["credit_points"]
                 ):
-                    # SAME mark: skip
                     skipped += 1
-                
+
                 else:
-                    # UPDATED mark: update and set flag
                     existing_mark.subject_name = m["subject_name"]
                     existing_mark.grade = m["grade"]
                     existing_mark.points = m["points"]
                     existing_mark.credits = m["credits"]
                     existing_mark.credit_points = m["credit_points"]
                     updated += 1
-                    
-                    # Set flag for recalculation
-                    sgpa_result = await db.execute(
-                        select(SemesterGPA).where(
-                            (SemesterGPA.roll_no == roll_no) &
-                            (SemesterGPA.semester == semester) &
-                            (SemesterGPA.college_id == current_user.college_id)
-                        )
-                    )
-                    sgpa = sgpa_result.scalars().first()
+
+                    sgpa = sgpa_by_roll_sem.get((roll_no, semester))
                     if sgpa:
                         sgpa.needs_recalculation = True
-        
-        # Step 3: BULK INSERT ALL collected marks at once (THE SPEED!)
+
         if marks_to_insert:
             from sqlalchemy import insert
-            await db.execute(
-                insert(Mark).values(marks_to_insert)
-            )
-        
+            await db.execute(insert(Mark).values(marks_to_insert))
+
         return {
             "inserted_marks": inserted,
             "updated_marks": updated,
@@ -438,17 +318,132 @@ class CSVService:
             "failed_marks": failed
         }
 
-
     @staticmethod
-    def _safe_int(v):
+    def _safe_int(value):
         try:
-            return int(v.strip())
-        except:
+            return int(value.strip())
+        except (ValueError, AttributeError):
             return None
-    
+        
     @staticmethod
-    def _safe_float(v):
+    def _safe_float(value):
         try:
-            return float(v.strip())
-        except:
-            return 0.0
+            return float(value.strip())
+        except (ValueError, AttributeError):
+            return None
+        
+    @staticmethod
+    def _validate_row(parts, row_number):
+        """
+        Validate one CSV row.
+        Raises CSVParseError if any value is invalid.
+        """
+
+        # ---------- Roll Number ----------
+        roll_no = parts[0].strip()
+
+        if not roll_no:
+            raise CSVParseError(
+                details=f"Row {row_number}: Roll number cannot be empty"
+            )
+
+        if not roll_no.isdigit():
+            raise CSVParseError(
+                details=f"Row {row_number}: Roll number must contain only digits"
+            )
+
+        # ---------- Semester ----------
+        semester = CSVService._safe_int(parts[1])
+
+        if semester is None:
+            raise CSVParseError(
+                details=f"Row {row_number}: Semester must be an integer"
+            )
+
+        if semester < 1 or semester > 8:
+            raise CSVParseError(
+                details=f"Row {row_number}: Semester must be between 1 and 8"
+            )
+
+        # ---------- Subject Code ----------
+        subject_code = parts[2].strip()
+
+        if not subject_code:
+            raise CSVParseError(
+                details=f"Row {row_number}: Subject code cannot be empty"
+            )
+
+        # ---------- Subject Name ----------
+        subject_name = parts[3].strip()
+
+        if not subject_name:
+            raise CSVParseError(
+                details=f"Row {row_number}: Subject name cannot be empty"
+            )
+
+        # ---------- Grade ----------
+        grade = parts[4].strip().upper()
+
+        valid_grades = {
+            "O",
+            "E",
+            "A",
+            "B",
+            "C",
+            "F"
+        }
+
+        if grade not in valid_grades:
+            raise CSVParseError(
+                details=f"Row {row_number}: Invalid grade '{grade}'"
+            )
+
+        # ---------- Points ----------
+        points = CSVService._safe_float(parts[5])
+
+        if points is None:
+            raise CSVParseError(
+                details=f"Row {row_number}: Points must be numeric"
+            )
+
+        if points < 0 or points > 10:
+            raise CSVParseError(
+                details=f"Row {row_number}: Points must be between 0 and 10"
+            )
+
+        # ---------- Credits ----------
+        credits = CSVService._safe_float(parts[6])
+
+        if credits is None:
+            raise CSVParseError(
+                details=f"Row {row_number}: Credits must be numeric"
+            )
+
+        if credits <= 0:
+            raise CSVParseError(
+                details=f"Row {row_number}: Credits must be greater than 0"
+            )
+
+        # ---------- Credit Points ----------
+        credit_points = CSVService._safe_float(parts[7])
+
+        if credit_points is None:
+            raise CSVParseError(
+                details=f"Row {row_number}: Credit points must be numeric"
+            )
+
+        if credit_points < 0:
+            raise CSVParseError(
+                details=f"Row {row_number}: Credit points cannot be negative"
+            )
+
+        return {
+            "roll_no": roll_no,
+            "semester": semester,
+            "subject_code": subject_code,
+            "subject_name": subject_name,
+            "grade": grade,
+            "points": points,
+            "credits": credits,
+            "credit_points": credit_points
+        }

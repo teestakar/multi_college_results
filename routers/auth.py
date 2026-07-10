@@ -278,7 +278,7 @@ async def refresh(request: Request, request_data: RefreshRequest, db: AsyncSessi
 # ============================================================================
 
 @router.post("/register")
-@limiter.limit("20/hour")
+@limiter.limit("100/hour")
 async def register_student(
     request: Request,
     register_data: StudentRegisterSchema, 

@@ -29,10 +29,13 @@ async function apiCall(endpoint, options = {}) {
 
             if (error.detail) {
                 if (typeof error.detail === "object") {
-                    errorMessage =
-                        error.detail.message ||
-                        error.detail.code ||
-                        "Unknown error";
+
+                    errorMessage = error.detail.message || "Unknown error";
+
+                    if (error.detail.details) {
+                        errorMessage += `\n\n${error.detail.details}`;
+                    }
+
                 } else {
                     errorMessage = error.detail;
                 }

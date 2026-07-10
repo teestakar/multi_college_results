@@ -13,3 +13,4 @@ alembic
 psycopg2
 python-multipart-0.0.32
 slowapi
+redis==3.5.3

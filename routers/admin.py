@@ -4,13 +4,14 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
-
+import time
 from database.database import get_db
 from database.models import UploadBatch, Teacher, SemesterGPA, Mark,Student
 from auth.permissions import require_admin
-from auth.exceptions import ResourceNotFoundException, CSVProcessingError
+from auth.exceptions import ResourceNotFoundException, CSVProcessingError, CSVParseError
 from services.csv_service import CSVService
 from services.cache_service import cache_service
+from services.redis_cache_service import redis_cache_service
 
 router = APIRouter()
 
@@ -24,12 +25,9 @@ async def list_pending_uploads(
 ):
     """
     Get all pending uploads for this college
-    
-    Returns: List of pending uploads waiting for admin approval
     """
     
     try:
-        # Query all pending uploads for this college
         result = await db.execute(
             select(UploadBatch).where(
                 (UploadBatch.college_id == current_user.college_id) &
@@ -38,15 +36,23 @@ async def list_pending_uploads(
         )
         
         uploads = result.scalars().all()
-        
-        # Format response
+
+        # ============================================================
+        # NEW: Batch-fetch all relevant teachers in ONE query
+        # ============================================================
+        teacher_ids = list({upload.uploaded_by for upload in uploads})
+
+        teachers_result = await db.execute(
+            select(Teacher).where(Teacher.teacher_id.in_(teacher_ids))
+        )
+        teacher_by_id = {t.teacher_id: t for t in teachers_result.scalars().all()}
+
+        # ============================================================
+        # Loop is now pure Python — no queries inside it
+        # ============================================================
         pending_uploads = []
         for upload in uploads:
-            # Get teacher name
-            teacher_result = await db.execute(
-                select(Teacher).where(Teacher.teacher_id == upload.uploaded_by)
-            )
-            teacher = teacher_result.scalars().first()
+            teacher = teacher_by_id.get(upload.uploaded_by)
             
             pending_uploads.append({
                 "upload_id": str(upload.id),
@@ -70,7 +76,6 @@ async def list_pending_uploads(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch pending uploads: {str(e)}"
         )
-
 
 # ==================== ENDPOINT 2: Download Upload CSV ====================
 
@@ -143,7 +148,7 @@ async def approve_upload(
     4. Update upload_batches status to "approved"
     5. Return result
     """
-    
+    start_time = time.time() 
     try:
         from uuid import UUID as PyUUID
         upload_uuid = PyUUID(upload_id)
@@ -202,8 +207,11 @@ async def approve_upload(
         upload.completed_at = datetime.utcnow()
         await db.commit()
         
-        cache_service.invalidate_pattern("stats_")
+        redis_cache_service.invalidate_pattern("stats_")
         
+        #cache_service.invalidate_pattern("stats_")
+        elapsed = time.time() - start_time   # ← ADD
+        print(f"DEBUG: approve_upload took {elapsed:.2f} seconds")   # ← ADD
         # Step 6: Return result
         return {
             "status": "success",
@@ -212,10 +220,11 @@ async def approve_upload(
             "marks_updated": mark_result["updated_marks"],
             "marks_skipped": mark_result["skipped_marks"],
            # "sgpa_inserted": mark_result["inserted_sgpa"],
+            "elapsed_seconds": round(elapsed, 2), 
             "message": f"Upload approved successfully. {mark_result['inserted_marks'] + mark_result['updated_marks']} marks processed"
         }
     
-    except (ResourceNotFoundException, CSVProcessingError):
+    except (ResourceNotFoundException, CSVProcessingError, CSVParseError):
         await db.rollback()
         raise
     except Exception as e:
@@ -239,18 +248,8 @@ async def calculate_sgpa(
 ):
     """
     Calculate SGPA for all students in all semesters that have marks
-    
-    No input needed - endpoint finds all marks and calculates SGPA for them
-    
-    Flow:
-    1. Find all distinct (college_id, roll_no, semester) in marks table
-    2. For each student-semester:
-       - If SemesterGPA doesn't exist: CREATE new
-       - If needs_recalculation=False: SKIP
-       - If needs_recalculation=True: RECALCULATE and reset flag
-    3. Return counts
     """
-    
+    start_time = time.time()   # ← ADD
     try:
         print(f"DEBUG: Starting SGPA calculation for college={current_user.college_id}")
         
@@ -275,77 +274,98 @@ async def calculate_sgpa(
                 "updated": 0,
                 "message": "No marks found in system"
             }
-        
+
+        # ============================================================
+        # NEW: Batch-fetch everything BEFORE the loop (fixes N+1)
+        # ============================================================
+
+        # Unique roll_nos we'll need data for
+        roll_nos = list({roll_no for (_, roll_no, _) in student_semesters})
+
+        # 1) Fetch ALL marks for these students in this college — ONE query
+        all_marks_result = await db.execute(
+            select(Mark).where(
+                (Mark.college_id == current_user.college_id) &
+                (Mark.roll_no.in_(roll_nos))
+            )
+        )
+        all_marks = all_marks_result.scalars().all()
+
+        # Group marks by (roll_no, semester) in memory
+        marks_by_roll_sem = {}
+        for m in all_marks:
+            key = (m.roll_no, m.semester)
+            marks_by_roll_sem.setdefault(key, []).append(m)
+
+        # 2) Fetch ALL students in this college — ONE query
+        all_students_result = await db.execute(
+            select(Student).where(
+                (Student.college_id == current_user.college_id) &
+                (Student.roll_no.in_(roll_nos))
+            )
+        )
+        student_by_roll = {s.roll_no: s for s in all_students_result.scalars().all()}
+
+        # 3) Fetch ALL existing SemesterGPA rows for these students — ONE query
+        all_sgpa_result = await db.execute(
+            select(SemesterGPA).where(
+                (SemesterGPA.college_id == current_user.college_id) &
+                (SemesterGPA.roll_no.in_(roll_nos))
+            )
+        )
+        sgpa_by_roll_sem = {
+            (s.roll_no, s.semester): s
+            for s in all_sgpa_result.scalars().all()
+        }
+
+        # ============================================================
+        # Loop is now PURE PYTHON — no queries inside it
+        # ============================================================
+
         calculated = 0
         updated = 0
-        
+
         for idx, (college_id, roll_no, sem) in enumerate(student_semesters):
             print(f"DEBUG: Processing {idx+1}/{len(student_semesters)}: roll_no={roll_no}, sem={sem}")
-            
+
             try:
-                # Get all marks for this student-semester
-                marks_result = await db.execute(
-                    select(Mark).where(
-                        (Mark.roll_no == roll_no) &
-                        (Mark.college_id == college_id) &
-                        (Mark.semester == sem)
-                    )
-                )
-                marks = marks_result.scalars().all()
-                
+                marks = marks_by_roll_sem.get((roll_no, sem), [])
+
                 if not marks:
                     print(f"DEBUG: No marks found for {roll_no}")
                     continue
-                
+
                 print(f"DEBUG: Found {len(marks)} marks for {roll_no}, sem={sem}")
-                
-                # Calculate SGPA
+
                 total_credits = sum(m.credits for m in marks)
                 total_credit_points = sum(m.credit_points for m in marks)
-                
+
                 if total_credits == 0:
                     print(f"DEBUG: Zero credits for {roll_no}")
                     continue
-                
+
                 sgpa = total_credit_points / total_credits
                 backlog_count = len([m for m in marks if m.points < 6.0])
-                
+
                 if backlog_count == 0:
                     status_val = "pass"
                 elif backlog_count <= 4:
                     status_val = "pass_with_backlog"
                 else:
                     status_val = "fail"
-                
+
                 print(f"DEBUG: Calculated SGPA={sgpa}, status={status_val}")
-                
-                # Get student info
-                student_result = await db.execute(
-                    select(Student).where(
-                        (Student.roll_no == roll_no) &
-                        (Student.college_id == college_id)
-                    )
-                )
-                student = student_result.scalars().first()
-                
+
+                student = student_by_roll.get(roll_no)
                 if not student:
                     print(f"DEBUG: Student not found for {roll_no}")
                     continue
-                
+
                 print(f"DEBUG: Student found: {student.name}")
-                
-                # Check if SemesterGPA exists
-                sgpa_result = await db.execute(
-                    select(SemesterGPA).where(
-                        (SemesterGPA.roll_no == roll_no) &
-                        (SemesterGPA.semester == sem) &
-                        (SemesterGPA.college_id == college_id)
-                    )
-                )
-                existing_sgpa = sgpa_result.scalars().first()
-                
+
+                existing_sgpa = sgpa_by_roll_sem.get((roll_no, sem))
+
                 if not existing_sgpa:
-                    # Case 1: CREATE new SGPA
                     print(f"DEBUG: Creating new SGPA for {roll_no}")
                     new_sgpa = SemesterGPA(
                         roll_no=roll_no,
@@ -363,15 +383,13 @@ async def calculate_sgpa(
                     )
                     db.add(new_sgpa)
                     calculated += 1
-                
+
                 else:
-                    # Case 2: Check flag
                     print(f"DEBUG: SGPA exists, needs_recalc={existing_sgpa.needs_recalculation}")
                     if not existing_sgpa.needs_recalculation:
                         print(f"DEBUG: Skipping {roll_no} (no changes needed)")
                         continue
-                    
-                    # RECALCULATE
+
                     print(f"DEBUG: Recalculating SGPA for {roll_no}")
                     existing_sgpa.sgpa = sgpa
                     existing_sgpa.total_credits = total_credits
@@ -380,24 +398,27 @@ async def calculate_sgpa(
                     existing_sgpa.backlog_count = backlog_count
                     existing_sgpa.needs_recalculation = False
                     updated += 1
-            
+
             except Exception as inner_e:
                 print(f"DEBUG: Error processing {roll_no}: {str(inner_e)}")
                 import traceback
                 print(traceback.format_exc())
                 continue
-        
+
         print(f"DEBUG: Committing... calculated={calculated}, updated={updated}")
         await db.commit()
-        cache_service.invalidate_pattern("stats_")
 
+        redis_cache_service.invalidate_pattern("stats_")
+        elapsed = time.time() - start_time   # ← ADD
+        print(f"DEBUG: calculate_sgpa took {elapsed:.2f} seconds")   # ← ADD
         return {
             "status": "success",
             "calculated": calculated,
             "updated": updated,
+            "elapsed_seconds": round(elapsed, 2),   # ← ADD
             "message": f"SGPA calculation complete. {calculated} new, {updated} updated"
         }
-    
+
     except Exception as e:
         await db.rollback()
         print(f"DEBUG: Error in calculate_sgpa: {str(e)}")
@@ -407,7 +428,6 @@ async def calculate_sgpa(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate SGPA: {str(e)}"
         )
-
 
 # ==================== ENDPOINT 4: Reject Upload ====================
 
