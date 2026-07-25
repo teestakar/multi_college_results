@@ -213,7 +213,7 @@ async def get_my_results(
 # ============================================================================
 
 @router.post("/upload-csv")
-@limiter.limit("5/hour")
+@limiter.limit("100/hour")
 async def upload_csv(
     request: Request,
     file: UploadFile = File(...),

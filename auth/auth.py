@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt, ExpiredSignatureError 
 from passlib.context import CryptContext
 from config import settings
@@ -68,9 +68,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     
     # Set expiry time
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRY_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRY_MINUTES)
     
     to_encode.update({
         "exp": expire,
@@ -137,7 +137,7 @@ def create_refresh_token(data: dict) -> str:
         Refresh token string
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=7)
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
     to_encode.update({
         "exp": expire,
         "type": "refresh"

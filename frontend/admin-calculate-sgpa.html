@@ -9,14 +9,14 @@
             font-family: Arial;
             background: #f5f5f5;
             margin: 0;
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
+            padding-top: 60px;
             position: relative;
         }
 
-        /* TOP BAR */
         .topbar {
             position: absolute;
             top: 20px;
@@ -37,14 +37,13 @@
             background: #f0f0f0;
         }
 
-        /* CARD */
         .card {
             background: white;
             padding: 40px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             text-align: center;
-            width: 400px;
+            width: 450px;
         }
 
         button {
@@ -68,24 +67,47 @@
             color: #333;
         }
 
-        .success {
-            color: green;
+        .success { color: green; }
+        .error { color: red; }
+
+        .history {
+            margin-top: 30px;
+            text-align: left;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
         }
 
-        .error {
-            color: red;
+        .history h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .history-item {
+            font-size: 13px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            background: #f8f8f8;
+        }
+
+        .history-item.success { background: #e8f5e9; color: #2e7d32; }
+        .history-item.pending { background: #fff8e1; color: #f57f17; }
+        .history-item.failed { background: #ffebee; color: #c62828; }
+
+        .history-empty {
+            font-size: 13px;
+            color: #999;
         }
     </style>
 </head>
 
 <body>
 
-<!-- BACK BUTTON -->
 <div class="topbar">
     <a href="admin-dashboard.html" class="back-btn">← Back to Dashboard</a>
 </div>
 
-<!-- MAIN CARD -->
 <div class="card">
     <h2>SGPA Calculator</h2>
     <p>Click to calculate SGPA for all students</p>
@@ -95,6 +117,11 @@
     </button>
 
     <div class="status" id="status"></div>
+
+    <div class="history">
+        <h3>Recent runs</h3>
+        <div id="historyList"><div class="history-empty">Loading...</div></div>
+    </div>
 </div>
 
 <script src="api.js"></script>
@@ -102,27 +129,99 @@
 <script>
 const btn = document.getElementById('calcBtn');
 const statusDiv = document.getElementById('status');
+const historyList = document.getElementById('historyList');
+
+// Load history the moment the page opens
+window.addEventListener('DOMContentLoaded', loadHistory);
+
+async function loadHistory() {
+    try {
+        const tasks = await apiCall("/api/admin/tasks/recent?task_type=sgpa_calculation&limit=10", {
+            method: "GET"
+        });
+
+        if (!tasks || tasks.length === 0) {
+            historyList.innerHTML = `<div class="history-empty">No previous runs yet</div>`;
+            return;
+        }
+
+        historyList.innerHTML = tasks.map(t => {
+            const time = new Date(t.created_at).toLocaleString();
+            let detail = "";
+
+            if (t.status === "success" && t.result) {
+                detail = `New: ${t.result.calculated}, Updated: ${t.result.updated}`;
+            } else if (t.status === "failed") {
+                detail = t.error || "Unknown error";
+            } else {
+                detail = "Still processing...";
+            }
+
+            return `
+                <div class="history-item ${t.status}">
+                    ${time} — <strong>${t.status.toUpperCase()}</strong><br>
+                    ${detail}
+                </div>
+            `;
+        }).join("");
+
+    } catch (err) {
+        historyList.innerHTML = `<div class="history-empty">Could not load history</div>`;
+    }
+}
 
 async function calculateSGPA() {
     btn.disabled = true;
-    statusDiv.innerText = "Processing SGPA calculation...";
+    statusDiv.innerHTML = `<div>Processing SGPA calculation...</div>`;
 
     try {
-        const data = await apiCall("/api/admin/calculate-sgpa", {
+        const queued = await apiCall("/api/admin/calculate-sgpa", {
             method: "POST"
         });
 
-        statusDiv.innerHTML = `
-            <div class="success">
-                SGPA calculated successfully ✔<br><br>
-                New: ${data.calculated}<br>
-                Updated: ${data.updated}
-            </div>
-        `;
+        pollTaskStatus(queued.task_id);
 
     } catch (err) {
         statusDiv.innerHTML = `<div class="error">${err.message}</div>`;
-    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function pollTaskStatus(taskId) {
+    try {
+        const data = await apiCall(`/api/admin/tasks/${taskId}`, {
+            method: "GET"
+        });
+
+        if (data.status === "SUCCESS") {
+            const result = data.result;
+            statusDiv.innerHTML = `
+                <div class="success">
+                    SGPA calculated successfully ✔<br><br>
+                    New: ${result.calculated}<br>
+                    Updated: ${result.updated}
+                </div>
+            `;
+            btn.disabled = false;
+            loadHistory();  // refresh history to include this run
+
+        } else if (data.status === "FAILURE") {
+            statusDiv.innerHTML = `
+                <div class="error">
+                    SGPA calculation failed ✘<br><br>
+                    ${data.error}
+                </div>
+            `;
+            btn.disabled = false;
+            loadHistory();
+
+        } else {
+            statusDiv.innerHTML = `<div>Processing SGPA calculation... (${data.status})</div>`;
+            setTimeout(() => pollTaskStatus(taskId), 1500);
+        }
+
+    } catch (err) {
+        statusDiv.innerHTML = `<div class="error">${err.message}</div>`;
         btn.disabled = false;
     }
 }

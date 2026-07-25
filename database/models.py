@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, ForeignKey, Enum, Text, Index, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime,timezone
 import uuid
 
 Base = declarative_base()
@@ -13,7 +13,7 @@ class College(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)  # "Institute of Engineering & Management"
     college_code = Column(String(50), unique=True, nullable=False)  # "IEM"
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     students = relationship("Student", back_populates="college")
@@ -29,7 +29,7 @@ class Degree(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
     name = Column(String(100), nullable=False)  # "B.Tech", "M.Tech", etc
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     college = relationship("College", backref="degrees")
@@ -49,7 +49,7 @@ class Branch(Base):
     degree_id = Column(UUID(as_uuid=True), ForeignKey("degrees.id"), nullable=False)
     college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
     name = Column(String(100), nullable=False)  # "CSE", "ECE", "ME", etc
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     degree_obj = relationship("Degree", back_populates="branches")
@@ -75,8 +75,7 @@ class Student(Base):
     degree_id = Column(UUID(as_uuid=True), ForeignKey("degrees.id"), nullable=False)  # ← NEW
     branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False)  # ← NEW
     year = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     # Relationships
     college = relationship("College", back_populates="students")
     degree_obj = relationship("Degree", back_populates="students")  # ← NEW
@@ -99,7 +98,7 @@ class Teacher(Base):
     email = Column(String(255))
     college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
     role = Column(String(50), default="teacher")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     college = relationship("College", back_populates="teachers")
@@ -124,7 +123,7 @@ class Mark(Base):
     credits = Column(Float, nullable=False)
     credit_points = Column(Float, nullable=False)
     uploaded_by = Column(String(50), ForeignKey("teachers.teacher_id"))
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     student = relationship(
@@ -152,8 +151,8 @@ class UploadBatch(Base):
    # year = Column(Integer)  # Which year
     status = Column(String(50), default="pending")  # "pending", "processing", "completed", "failed"
     file_name = Column(String(255))  # "CSE_Sem2_2024.xlsx"
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
-    completed_at = Column(DateTime, nullable=True)
+    uploaded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)  # If parsing failed, why?
 
     # NEW COLUMNS
@@ -186,7 +185,7 @@ class SemesterGPA(Base):
     status = Column(String(50), nullable=False)  # "pass", "pass_with_backlog", "fail"
     backlog_count = Column(Integer, default=0)  # How many subjects < 6.0
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     needs_recalculation = Column(Boolean, default=False)  # ← NEW FLAG
     
@@ -201,4 +200,22 @@ class SemesterGPA(Base):
         Index('idx_semgpa_college_sem', 'college_id', 'semester'),
         Index('idx_semgpa_degree_sem', 'degree_id', 'semester'),
         Index('idx_semgpa_branch_sem', 'branch_id', 'semester'),
+    )
+
+
+class BackgroundTask(Base):
+    __tablename__ = "background_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id = Column(String(100), unique=True, nullable=False)  # Celery's task_id
+    task_type = Column(String(50), nullable=False)  # "sgpa_calculation", "csv_approval", etc.
+    college_id = Column(UUID(as_uuid=True), ForeignKey("colleges.id"), nullable=False)
+    status = Column(String(20), default="pending")  # pending, success, failed
+    result_summary = Column(Text, nullable=True)   # JSON string of whatever the task returns
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    __table_args__ = (
+        Index('idx_bgtask_college_type_created', 'college_id', 'task_type', 'created_at'),
     )
