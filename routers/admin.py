@@ -16,6 +16,8 @@ from tasks import calculate_sgpa_task  # ← ADD this import at the top of admin
 from celery_app import celery_app  # ← ADD this import too
 from database.models import BackgroundTask
 import json
+from tasks import approve_upload_task
+
 
 router = APIRouter()
 
@@ -136,6 +138,7 @@ async def download_upload(
 
 # ==================== ENDPOINT 3: Approve Upload ====================
 
+
 @router.post("/uploads/{upload_id}/approve")
 async def approve_upload(
     upload_id: str,
@@ -143,104 +146,34 @@ async def approve_upload(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Approve upload and insert marks into system
-    
-    Flow:
-    1. Fetch upload from upload_batches
-    2. Parse CSV content
-    3. Insert marks into marks table
-    4. Update upload_batches status to "approved"
-    5. Return result
+    Enqueue CSV approval as a background task.
+    Returns immediately with task_id instead of blocking.
     """
-    start_time = time.time() 
+    from uuid import UUID as PyUUID
+    
     try:
-        from uuid import UUID as PyUUID
         upload_uuid = PyUUID(upload_id)
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid upload_id format"
-        )
-    
-    try:
-        # Step 1: Fetch upload
-        result = await db.execute(
-            select(UploadBatch).where(
-                (UploadBatch.id == upload_uuid) &
-                (UploadBatch.college_id == current_user.college_id)
-            )
-        )
-        
-        upload = result.scalars().first()
-        
-        if not upload:
-            raise ResourceNotFoundException("Upload")
-        
-        if upload.status != "pending":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Upload status is {upload.status}, only 'pending' can be approved"
-            )
-        
-        # Step 2: Parse CSV from stored content
-        parsed_data = await CSVService._parse_csv_from_string(upload.csv_content)
-        
-        if parsed_data.get("error"):
-            raise CSVProcessingError(details="CSV parsing failed")
-        
-        student_marks = parsed_data["student_marks"]
-        
-        # Step 3: Get the teacher who uploaded (for uploaded_by field)
-        teacher_result = await db.execute(
-            select(Teacher).where(Teacher.teacher_id == upload.uploaded_by)
-        )
-        uploader = teacher_result.scalars().first()
-        
-        if not uploader:
-            raise ResourceNotFoundException("Teacher")
-        
-        # Step 4: Process marks (insert/update)
-        mark_result = await CSVService.process_and_insert_marks(
-            student_marks,
-            uploader,  # Use the original teacher who uploaded
-            db
-        )
-        
-        # Step 5: Update upload_batches status
-        upload.status = "approved"
-        upload.completed_at = datetime.now(timezone.utc)
-        await db.commit()
-        
-        redis_cache_service.invalidate_pattern("stats_")
-        
-        #cache_service.invalidate_pattern("stats_")
-        elapsed = time.time() - start_time   # ← ADD
-        print(f"DEBUG: approve_upload took {elapsed:.2f} seconds")   # ← ADD
-        # Step 6: Return result
-        return {
-            "status": "success",
-            "upload_id": str(upload.id),
-            "marks_inserted": mark_result["inserted_marks"],
-            "marks_updated": mark_result["updated_marks"],
-            "marks_skipped": mark_result["skipped_marks"],
-           # "sgpa_inserted": mark_result["inserted_sgpa"],
-            "elapsed_seconds": round(elapsed, 2), 
-            "message": f"Upload approved successfully. {mark_result['inserted_marks'] + mark_result['updated_marks']} marks processed"
-        }
-    
-    except (ResourceNotFoundException, CSVProcessingError, CSVParseError):
-        await db.rollback()
-        raise
-    except Exception as e:
-        await db.rollback()
-        print(f"DEBUG: Approval error: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to approve upload: {str(e)}"
-        )
-    
+        raise HTTPException(status_code=400, detail="Invalid upload_id format")
+
+    # Enqueue the task
+    task = approve_upload_task.delay(str(upload_uuid), str(current_user.college_id))
+
+    # Record it in BackgroundTask as pending
+    task_record = BackgroundTask(
+        task_id=task.id,
+        task_type="csv_approval",
+        college_id=current_user.college_id,
+        status="pending"
+    )
+    db.add(task_record)
+    await db.commit()
+
+    return {
+        "status": "queued",
+        "task_id": task.id,
+        "message": "CSV approval started in background"
+    }    
 
 
 # ==================== ENDPOINT 4: Calculate SGPA ====================

@@ -8,6 +8,9 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy import select
 from config import settings
 from database.models import Mark, Student, SemesterGPA, BackgroundTask
+from sqlalchemy import select
+from database.models import UploadBatch, Teacher, BackgroundTask
+from services.csv_service import CSVService
 
 celery_engine = create_async_engine(
     settings.DATABASE_URL,
@@ -152,3 +155,84 @@ async def _mark_task_done(db, task_id, status, result_data, error=None):
         if error:
             task_record.error_message = error
         await db.commit()
+
+
+
+
+@celery_app.task(bind=True)
+def approve_upload_task(self, upload_id, college_id):
+    """
+    Celery entry point for CSV approval.
+    self.request.id gives us the Celery task_id.
+    """
+    return asyncio.run(_approve_upload_async(self.request.id, upload_id, college_id))
+
+
+async def _approve_upload_async(task_id, upload_id, college_id):
+    """
+    Actual async logic — same N+1-fixed pattern as calculate_sgpa.
+    Opens CelerySessionLocal, does the work, updates BackgroundTask.
+    """
+    async with CelerySessionLocal() as db:
+        try:
+            # Step 1: Fetch the upload batch being approved
+            result = await db.execute(
+                select(UploadBatch).where(
+                    (UploadBatch.id == upload_id) &
+                    (UploadBatch.college_id == college_id)
+                )
+            )
+            upload = result.scalars().first()
+
+            if not upload:
+                await _mark_task_done(db, task_id, "failed", None, error="Upload not found")
+                return {"status": "failed", "error": "Upload not found"}
+
+            if upload.status != "pending":
+                await _mark_task_done(
+                    db, task_id, "failed", None, 
+                    error=f"Upload status is {upload.status}, not pending"
+                )
+                return {"status": "failed", "error": "Not pending"}
+
+            # Step 2: Parse the CSV content
+            parsed_data = await CSVService._parse_csv_from_string(upload.csv_content)
+            student_marks = parsed_data["student_marks"]
+
+            # Step 3: Get the teacher who uploaded this (for permission context)
+            teacher_result = await db.execute(
+                select(Teacher).where(Teacher.teacher_id == upload.uploaded_by)
+            )
+            uploader = teacher_result.scalars().first()
+
+            if not uploader:
+                await _mark_task_done(db, task_id, "failed", None, error="Uploader not found")
+                return {"status": "failed", "error": "Uploader not found"}
+
+            # Step 4: Process marks using the already-N+1-fixed service method
+            mark_result = await CSVService.process_and_insert_marks(student_marks, uploader, db)
+
+            # Step 5: Mark the upload as approved
+            upload.status = "approved"
+            upload.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+
+            # Step 6: Invalidate stats cache (marks changed, cached stats are stale)
+            from services.redis_cache_service import redis_cache_service
+            redis_cache_service.invalidate_pattern("stats_")
+
+            # Step 7: Record success in BackgroundTask
+            result_data = {
+                "inserted": mark_result["inserted_marks"],
+                "updated": mark_result["updated_marks"],
+                "skipped": mark_result["skipped_marks"],
+                "failed": mark_result["failed_marks"],
+            }
+            await _mark_task_done(db, task_id, "success", result_data)
+
+            return {"status": "success", **result_data}
+
+        except Exception as e:
+            await db.rollback()
+            await _mark_task_done(db, task_id, "failed", None, error=str(e))
+            raise
