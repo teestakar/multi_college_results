@@ -24,7 +24,7 @@ CelerySessionLocal = async_sessionmaker(
 )
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 5})
 def calculate_sgpa_task(self, college_id):
     return asyncio.run(_calculate_sgpa_async(self.request.id, college_id))
 
@@ -159,14 +159,9 @@ async def _mark_task_done(db, task_id, status, result_data, error=None):
 
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 5})
 def approve_upload_task(self, upload_id, college_id):
-    """
-    Celery entry point for CSV approval.
-    self.request.id gives us the Celery task_id.
-    """
     return asyncio.run(_approve_upload_async(self.request.id, upload_id, college_id))
-
 
 async def _approve_upload_async(task_id, upload_id, college_id):
     """

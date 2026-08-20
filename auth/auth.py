@@ -6,7 +6,11 @@ from auth.exceptions import TokenExpiredException, InvalidTokenException
 # ==================== PASSWORD HASHING ====================
 
 # Use bcrypt for password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=10
+)
 
 def hash_password(password: str) -> str:
     """
@@ -23,6 +27,11 @@ def hash_password(password: str) -> str:
         # password_hash = "$2b$12$abcd1234..."
     """
     return pwd_context.hash(password)
+
+import asyncio
+
+async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
+    return await asyncio.to_thread(pwd_context.verify, plain_password, hashed_password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

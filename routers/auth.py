@@ -17,7 +17,7 @@ from database.schemas import (
 )
 from auth.auth import (
     hash_password, 
-    verify_password, 
+    verify_password_async, 
     create_access_token, 
     create_refresh_token, 
     decode_token
@@ -140,62 +140,116 @@ async def get_colleges(db: AsyncSession = Depends(get_db)):
 
 from auth.exceptions import InvalidCredentialsException, ResourceNotFoundException  # ← ADD THESE
 
+import time
+
 @router.post("/login")
-@limiter.limit("5/minute")
-async def login(request: Request, login_data: StudentLoginSchema, db: AsyncSession = Depends(get_db)) -> TokenSchema:
-    """
-    Student login endpoint
-    
-    Input: {college_code, roll_no, password}
-    Output: {access_token, refresh_token, token_type, user_name}
-    """
-    
-    # Step 1: Find college by college_code
+@limiter.limit("100000/minute")
+async def login(
+    request: Request,
+    login_data: StudentLoginSchema,
+    db: AsyncSession = Depends(get_db)
+) -> TokenSchema:
+
+    total_start = time.perf_counter()
+
+    # ==========================================================
+    # STEP 1: College lookup
+    # ==========================================================
+    step = time.perf_counter()
+
     college_query = select(College).where(
         College.college_code == login_data.college_code
     )
+
     college_result = await db.execute(college_query)
     college = college_result.scalars().first()
-    
-    # ← CHANGED: Use custom exception instead of HTTPException
+
+    print(f"[SQL] College query: {(time.perf_counter()-step)*1000:.2f} ms")
+
     if not college:
         raise ResourceNotFoundException("College")
-    
-    # Step 2: Find student by college_id + roll_no
+
+    # ==========================================================
+    # STEP 2: Student lookup
+    # ==========================================================
+    step = time.perf_counter()
+
     student_query = select(Student).where(
         (Student.college_id == college.id) &
         (Student.roll_no == login_data.roll_no)
     )
+
     student_result = await db.execute(student_query)
     student = student_result.scalars().first()
-    
-    # ← CHANGED: Use custom exception instead of HTTPException
+
+    print(f"[SQL] Student query: {(time.perf_counter()-step)*1000:.2f} ms")
+
     if not student:
         raise InvalidCredentialsException()
-    
-    # Step 3: Verify password
-    if not verify_password(login_data.password, student.password_hash):
-        # ← CHANGED: Use custom exception instead of HTTPException
+
+    # ==========================================================
+    # STEP 3: Password verification
+    # ==========================================================
+    step = time.perf_counter()
+
+    if not await verify_password_async(login_data.password, student.password_hash):
         raise InvalidCredentialsException()
-    
-    # Step 4: Create tokens
+
+    print(f"[AUTH] Password verify: {(time.perf_counter()-step)*1000:.2f} ms")
+
+    # ==========================================================
+    # STEP 4: Payload creation
+    # ==========================================================
+    step = time.perf_counter()
+
     payload = {
         "user_id": str(student.roll_no),
-        "user_type": "student", 
-        "college_id": str(student.college_id)
+        "user_type": "student",
+        "college_id": str(student.college_id),
     }
+
+    print(f"[JWT] Payload creation: {(time.perf_counter()-step)*1000:.2f} ms")
+
+    # ==========================================================
+    # STEP 5: Access token
+    # ==========================================================
+    step = time.perf_counter()
+
     access_token = create_access_token(payload)
+
+    print(f"[JWT] Access token: {(time.perf_counter()-step)*1000:.2f} ms")
+
+    # ==========================================================
+    # STEP 6: Refresh token
+    # ==========================================================
+    step = time.perf_counter()
+
     refresh_token = create_refresh_token(payload)
 
-    
-    # Step 5: Return tokens (explicitly create schema)
-    return TokenSchema(
+    print(f"[JWT] Refresh token: {(time.perf_counter()-step)*1000:.2f} ms")
+
+    # ==========================================================
+    # STEP 7: Response creation
+    # ==========================================================
+    step = time.perf_counter()
+
+    response = TokenSchema(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
         user_name=student.name
     )
 
+    print(f"[RESP] Response creation: {(time.perf_counter()-step)*1000:.2f} ms")
+
+    # ==========================================================
+    # TOTAL
+    # ==========================================================
+    print("=" * 60)
+    print(f"[TOTAL] Login: {(time.perf_counter()-total_start)*1000:.2f} ms")
+    print("=" * 60)
+
+    return response
 # ============================================================================
 # 2. REFRESH ENDPOINT
 # ============================================================================
@@ -397,7 +451,7 @@ async def teacher_login(request: Request, login_data: TeacherLoginSchema, db: As
         raise InvalidTeacherCredentialsException()
     
     # Step 2: Verify password
-    if not verify_password(login_data.password, teacher.password_hash):
+    if not verify_password_async(login_data.password, teacher.password_hash):
         # ← CHANGED: Use custom exception instead of HTTPException
         raise InvalidTeacherCredentialsException()
     

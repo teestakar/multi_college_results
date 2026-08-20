@@ -2,14 +2,16 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from config import settings
 from database.models import Base
 
-# Create async engine (connection pool to PostgreSQL)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
+    pool_size=30,
+    max_overflow=30,   # 60 max, same as your last successful run
+    pool_timeout=30,
+    pool_pre_ping=True,
 )
 
-# Create async session factory
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -17,22 +19,17 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-# Dependency for FastAPI (we'll use this later in auth/routes)
+import time
+
 async def get_db():
-    """
-    Dependency that provides database session to API endpoints.
-    Usage:
-        async def my_endpoint(db: AsyncSession = Depends(get_db)):
-            results = await db.execute(...)
-    """
+    start = time.perf_counter()
+
     async with AsyncSessionLocal() as session:
+        acquire_time = (time.perf_counter() - start) * 1000
+        print(f"[POOL] Session acquired: {acquire_time:.2f} ms")
+
         yield session
 
-# Function to create all tables
 async def init_db():
-    """
-    Creates all tables in PostgreSQL based on models.
-    Run this once at startup.
-    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

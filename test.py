@@ -1,7 +1,7 @@
 import requests
 
 BASE_URL = "http://localhost:8000/api/auth/register"
-ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiVklUX0FETUlOIiwidXNlcl90eXBlIjoiYWRtaW4iLCJjb2xsZWdlX2lkIjoiNmM0NDU3ODgtNTA4ZC00NTRiLTg3OWUtZDFiZjRjMDBhMTYzIiwiZXhwIjoxNzgzNzE0NDcwLCJ0eXBlIjoiYWNjZXNzIn0.ulFqldcPyvjUjnpNEsyO9M1ti-74LvJGh6MIP0YHilk"
+ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiVklUX0FETUlOIiwidXNlcl90eXBlIjoiYWRtaW4iLCJjb2xsZWdlX2lkIjoiOGIwYjBiMzctNjFiNS00OWRiLThkMWQtYzNhNTc5OTQ1MjFjIiwiZXhwIjoxNzg1OTYwOTI3LCJ0eXBlIjoiYWNjZXNzIn0.cU7RgX8BxBzGUaaJlXHUuyKutJrTUgwc2ePBdoBwDkg"
 
 headers = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
 
@@ -13,7 +13,7 @@ YEAR = 2024
 
 NUM_STUDENTS = 100
 
-for i in range(51, NUM_STUDENTS + 1):
+for i in range(1, NUM_STUDENTS + 1):
     roll_no = f"12024{i:03d}"
     payload = {
         "roll_no": roll_no,
